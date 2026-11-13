@@ -1137,12 +1137,13 @@ const route = async (event) => {
         const ids0 = new Set(its0.map((i) => i.id)); const nm0 = Object.fromEntries(its0.map((i) => [i.id, i.name]));
         const hist0 = (await recentLog(200).catch(() => [])).filter((l) => ids0.has(l.itemId || l.item || l.id)).map((l) => ({ ...l, itemName: nm0[l.itemId || l.item || l.id] }));
         standing += historyHtml(hist0, (id) => stepById(id)?.name || id || '');
+        extrasP.side = { dest: dest0, po: po0, email: (cu0.contact || {}).email || '', phone: (cu0.company || {}).phone || (cu0.contact || {}).phone || '', expected: expectedFor(p, its0, today0) };
         standing += poPanel(p.id, po0 || {}, po0 && po0.poAmount ? poCheck({ poAmount: po0.poAmount, total: p.total, tax: p.tax || 0, taxExempt: !!(co0.isTaxExempt ?? co0.IsTaxExempt ?? co0.taxExempt) }) : null);
       }
       if (mode === 'demo') {
         const all = await listItems();
         const its = all.filter((i) => i.projectId === p.id);
-        if (its.length) return html(projectPage({ extras: { ...extrasP, itemCount: its.length }, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo`), cbStatus: projectCbStatus(all, p.id) }));
+        if (its.length) return html(projectPage({ extras: { ...extrasP, itemCount: its.length }, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo`, { total: p.total, discount: p.discount, balance: p.balance, deposit: p.balance != null && p.total != null ? Math.max(0, Number(p.total) - Number(p.balance)) : 0 }), cbStatus: projectCbStatus(all, p.id) }));
       }
       if (mode === 'demo' && ['prospect', 'estimate'].includes(p.lane)) return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: estimateCta(p) }));
       return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing }));
