@@ -161,13 +161,18 @@ export function syncPurchasing(records = [], items = [], projects = [], today) {
 }
 
 // Permits: a product marked "Needs a permit" on the project's Products tab gets a Permits card, linked to it.
+// Phil, Nov 13: a quote with a permit product line ("Service - Permitting and Inspections", "Service - Electrical
+// Permit" in CoreBridge) goes to Permits automatically once the estimate converts to an order.
+export const isPermitLine = (it) => /permit/i.test(String(it && (it.product || it.name) || ''));
+const ORDERED = ['progress', 'built', 'complete'];
 export function syncPermits(records = [], items = [], flags = {}, projects = [], today) {
   const out = [...records]; let added = 0;
   const add = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
   for (const it of items) {
-    if (!flags[it.id] || out.some((r) => r.item === it.id)) continue;
     const pr = projects.find((p) => p.id === it.projectId) || {};
-    out.push({ id: `auto-${it.id}`, name: it.name, project: it.projectId, company: pr.company || '', city: '', col: 'needs', item: it.id, owner: 'Permits', follow: add(today, 2), auto: true });
+    const auto = isPermitLine(it) && ORDERED.includes(pr.lane);
+    if ((!flags[it.id] && !auto) || out.some((r) => r.item === it.id || (r.project === it.projectId && String(r.name).toLowerCase() === String(it.name).toLowerCase()))) continue;
+    out.push({ id: `auto-${it.id}`, name: it.name, project: it.projectId, company: pr.company || '', city: '', col: 'needs', item: it.id, owner: 'Permits', follow: add(today, 2), auto: true, permitType: /electric/i.test(it.product || it.name) ? 'Electrical' : 'Sign permit' });
     added++;
   }
   return { records: out, added };

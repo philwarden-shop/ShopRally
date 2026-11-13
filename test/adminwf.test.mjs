@@ -186,3 +186,10 @@ test('permits: products marked "needs a permit" get one linked card', () => {
   assert.equal(syncPermits(r.records, [{ id: 'i1', projectId: 'p1', name: 'Monument' }], { i1: true }, [], '2026-11-13').added, 0);
   assert.ok(itemsPanel([{ id: 'i1', projectId: 'p1', name: 'M', step: 'wip' }], '/x', null, { i1: true }).includes('Needs a Permit · on the Permits Board'));
 });
+test('permits: a Permitting product line goes to Permits once the estimate is an order', () => {
+  const items = [{ id: 'i9', projectId: 'p1', name: 'Service - Permitting and Inspections' }, { id: 'i8', projectId: 'p2', name: 'Service - Electrical Permit' }];
+  const pr = [{ id: 'p1', lane: 'estimate', company: 'A' }, { id: 'p2', lane: 'progress', company: 'B' }];
+  const r = syncPermits([], items, {}, pr, '2026-11-13');
+  assert.deepEqual(r.records.map((x) => [x.item, x.permitType]), [['i8', 'Electrical']]);
+  assert.equal(syncPermits([], items, {}, [{ ...pr[0], lane: 'progress' }, pr[1]], '2026-11-13').added, 2);
+});
