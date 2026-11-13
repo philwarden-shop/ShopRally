@@ -144,3 +144,8 @@ test('stuck uses the published workflow target days', () => {
   assert.equal(stuckItems([it], now).length, 0);
   assert.equal(stuckItems([it], now, stepTargetsFrom([{ id: 'wip', days: 2 }])).length, 1);
 });
+import { missingNextStep } from '../app/activities.mjs';
+test('missing next step ignores projects moving on a board', () => {
+  const ps = [{ id: 'a', lane: 'progress' }, { id: 'b', lane: 'progress', onBoard: true }];
+  assert.deepEqual(missingNextStep(ps, []).map((x) => x.projectId), ['a']);
+});

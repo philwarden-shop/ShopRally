@@ -84,6 +84,9 @@ export function formBody(event) {
   const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
   return Object.fromEntries(new URLSearchParams(raw));
 }
+// A project whose items are moving on a board (or waiting on the customer) already has a next step: the board owns it.
+const ACTIVE_STEPS = new Set(['prep', 'queue', 'indesign', 'proofqc', 'salesrev', 'proofwait', 'files', 'wip', 'vended', 'qc', 'hold']);
+const markOnBoard = (projects, items) => { const on = new Set((items || []).filter((i) => ACTIVE_STEPS.has(i.step)).map((i) => i.projectId)); return projects.map((p) => (on.has(p.id) ? { ...p, onBoard: true } : p)); };
 const safeBack = (b, dflt) => (typeof b === 'string' && /^\/[\w/?=&.-]*$/.test(b) && !b.startsWith('//') ? b : dflt);
 
 const SECURITY = {
@@ -1130,7 +1133,7 @@ const route = async (event) => {
           : `<div class="nstep" style="background:#fdf3dc;color:#7a4e00"><b>No next step</b><span>Every open job needs one.</span><a class="go" href="/activities?new=1&project=${esc(p.id)}">Add Next Step →</a></div>`;
         standing = `<style>.nstep{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#3d4658;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;align-self:flex-start}.nstep b{color:var(--mute)}.nstep .m{color:var(--mute)}.nstep .go{font:inherit;font-size:12px;font-weight:700;color:#fff;background:#a8343f;border:0;border-radius:6px;padding:0 10px;min-height:28px;cursor:pointer;display:inline-flex;align-items:center}.nstep a.go:hover{text-decoration:none}</style>` + standing;
         // One next-step control (UX review): it lives in the header; the separate banner is gone.
-        p.nextStep = nx ? `${nx.title} · ${dueTxt}` : ''; p.nextMissing = !nx; void bar0;
+        const onB0 = !nx && (await listItems()).some((i) => i.projectId === p.id && ACTIVE_STEPS.has(i.step)); p.nextStep = nx ? `${nx.title} · ${dueTxt}` : onB0 ? 'On the boards: each product has its own next step (see Products)' : ''; p.nextMissing = !nx && !onB0; void bar0;
       }
       if (mode === 'demo') {
         let po0 = null; try { po0 = await getConfig(`po-${p.id}`, null); } catch { /* none */ }
@@ -1238,7 +1241,7 @@ const route = async (event) => {
       for (const tm of await getConfig('team', demoTeam()).catch(() => demoTeam())) { if (tm.key === who) continue; const o = await getConfig(`ooo-${tm.key}`, null).catch(() => null); if (o && o.on && o.delegate === who) coverList.push({ name: tm.name, ooo: o, mail: await getConfig(`mail-${tm.key}`, []).catch(() => []) }); }
       mailA = wakeSnoozed(mailA, new Date().toISOString());
       const evA = ['need', 'waiting', 'snoozed', 'draft'].includes(q.ev) ? q.ev : 'need';
-      return html(activitiesPage({ undo: q.undo || '', user, tasks: [...tasks, ...lateTasks(projects.filter((pp) => ['progress', 'built'].includes(pp.lane)).map((pp) => expectedFor(pp, allItems.filter((i) => i.projectId === pp.id), today)), today), ...seqTodos, ...priceTodos(await getConfig('price-alerts', {}).catch(() => ({})), today), ...emailTodos(mailA, evA), ...coveringTasks(coverList, today)], emailBar: emailFilterBar(emailCounts(mailA), q.f === 'email' ? evA : ''), projects, log, today, filter: q.f || '', party: q.party === '1', isSales: user.prefs.as === 'sales', flash: q.flash || '', side: proofA, coord: coordA, cal: q.cal === 'week' ? 'week' : 'day', waiting: emailTodos(mailA, 'waiting'), goals: adm, celebrations: adm.celebrations !== false, newTask: q.new ? { projectId: q.project || '' } : null, team: await getConfig('team', demoTeam()).catch(() => demoTeam()), me: who }));
+      return html(activitiesPage({ undo: q.undo || '', user, tasks: [...tasks, ...lateTasks(projects.filter((pp) => ['progress', 'built'].includes(pp.lane)).map((pp) => expectedFor(pp, allItems.filter((i) => i.projectId === pp.id), today)), today), ...seqTodos, ...priceTodos(await getConfig('price-alerts', {}).catch(() => ({})), today), ...emailTodos(mailA, evA), ...coveringTasks(coverList, today)], emailBar: emailFilterBar(emailCounts(mailA), q.f === 'email' ? evA : ''), projects: markOnBoard(projects, allItems), log, today, filter: q.f || '', party: q.party === '1', isSales: user.prefs.as === 'sales', flash: q.flash || '', side: proofA, coord: coordA, cal: q.cal === 'week' ? 'week' : 'day', waiting: emailTodos(mailA, 'waiting'), goals: adm, celebrations: adm.celebrations !== false, newTask: q.new ? { projectId: q.project || '' } : null, team: await getConfig('team', demoTeam()).catch(() => demoTeam()), me: who }));
     }
     const cim = path.match(/^\/customers\/imported\/(\d{1,9})$/);
     if (cim) {
@@ -1353,7 +1356,7 @@ const route = async (event) => {
       const { projects: prT } = await listProjects('demo');
       const admT2 = await getConfig('admin-settings', {}).catch(() => ({}));
       const stN = st.map((s) => ({ ...s, stepName: stepById(s.step)?.name || s.step }));
-      const slip = slipping({ projects: prT, tasksBy, mailBy, stuck: stN, team: teamT, today: todayT });
+      const slip = slipping({ projects: markOnBoard(prT, its), tasksBy, mailBy, stuck: stN, team: teamT, today: todayT });
       return html(teamPage({ user, stuck: st, items: its, stepName: (id) => stepById(id)?.name || id, slip, reps: repRows({ projects: prT, tasksBy, mailBy, stuck: stN, today: todayT, goal: admT2.monthSales ?? 40000 }), show: ['Email', 'Task', 'Project', 'Customer'].includes(q.show) ? q.show : '', flash: q.flash || '' }));
     }
     if (path === '/team/nudge' && method === 'POST') {

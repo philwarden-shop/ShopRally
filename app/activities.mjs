@@ -45,7 +45,7 @@ export function demoTasks(today) {
 export function missingNextStep(projects, tasks) {
   const open = new Set(tasks.filter((t) => !t.done && t.projectId).map((t) => t.projectId));
   return projects
-    .filter((p) => !['complete', 'lost'].includes(p.lane) && !open.has(p.id))
+    .filter((p) => !['complete', 'lost'].includes(p.lane) && !open.has(p.id) && !p.onBoard)
     .map((p) => ({ id: `ns-${p.id}`, kind: 'task', title: 'Add a next step', customer: p.company, projectId: p.id, projectName: p.name, missing: true }));
 }
 
