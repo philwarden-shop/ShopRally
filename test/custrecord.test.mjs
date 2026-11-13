@@ -28,7 +28,7 @@ test('customer page: tabs end with Account, count badges, Express/Ground/Freight
   const c = C.listCustomers(projects)[1];
   const h = C.customerPage({ user: {}, c: { ...c, name: '<i>R</i>' }, profile: {}, tab: 'account' });
   const nav = h.slice(h.indexOf('aria-label="Customer sections"'));
-  const order = ['Overview', 'Projects', 'Contacts', 'Activity', 'Account'].map((t) => nav.indexOf(`>${t}`));
+  const order = ['Activity', 'Email', 'Projects', 'Needs', 'Contacts', 'Account'].map((t) => nav.indexOf(`>${t}`));
   assert.ok(order.every((x, i) => x > 0 && (i === 0 || x > order[i - 1])), 'tab order');
   for (const s of ['Express', 'Ground', 'Freight', 'Home location', 'Account status', 'Marketing emails']) assert.ok(h.includes(s), s);
   assert.ok(!h.includes('Means'));

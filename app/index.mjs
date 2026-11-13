@@ -1285,7 +1285,7 @@ const route = async (event) => {
         }
         if (cm[2]) {
           const at = new Date().toISOString();
-          const back2 = `/customers/${c.id}?tab=${cm[2] === 'vote' ? 'overview' : cm[2] === 'contact' ? 'contacts' : 'activity'}&`;
+          const back2 = `/customers/${c.id}?tab=${cm[2] === 'vote' ? 'activity' : cm[2] === 'contact' ? 'contacts' : 'activity'}&`;
           try { await putConfig(`customer-${c.id}`, cm[2] === 'activity' ? logActivity(profile, formBody(event), { who: personOf(user), at }) : cm[2] === 'contact' ? addContact(profile, formBody(event)) : voteInsight(profile, formBody(event).v, { who: personOf(user), at })); return redirect(back2 + 'flash=' + encodeURIComponent(cm[2] === 'activity' ? 'Logged.' : cm[2] === 'contact' ? 'Contact added.' : 'Thanks for the feedback.')); }
           catch (e) { return redirect(back2 + 'flash=' + encodeURIComponent('Not saved: ' + e.message)); }
         }
