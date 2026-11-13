@@ -157,7 +157,10 @@ const route = async (event) => {
         try {
           const axP = await getConfig('admin-extra', null).catch(() => null); const aList = (axP && Array.isArray(axP.approvalChecks) && axP.approvalChecks.length) ? axP.approvalChecks : APPROVAL_CHECKS;
           const d = decideProof(it, f.decision, { checks: aList.map((_, n) => f[`check${n}`]).filter(Boolean), notes: f.notes, list: aList, mustAll: axP ? axP.approvalAll !== false : true });
-          await moveItem(it.id, d.to, { by: `customer:${project.contact}`, note: d.note, reason: d.note });
+          const signer = String(f.signer || project.contact || '').trim().slice(0, 80);
+          await moveItem(it.id, d.to, { by: `customer:${signer || project.contact}`, note: d.to === 'files' ? `${d.note} Signed by ${signer}, proof ${String(f.version || '').slice(0, 10)}.` : d.note, reason: d.note });
+          // Approval record (review fix): who, which version, when, and what they ticked. Kept for disputes.
+          { const recs = await getConfig('proof-approvals', []).catch(() => []); await putConfig('proof-approvals', [...recs, { itemId: it.id, projectId: project.id, decision: f.decision, version: String(f.version || '').slice(0, 10), signer, at: new Date().toISOString(), checks: Object.keys(f).filter((k) => /^check\d+$/.test(k)).map((k) => String(f[k]).slice(0, 80)), notes: String(f.notes || '').slice(0, 1000) }].slice(-2000)); }
           const msg = d.to === 'files' ? `Thank you! "${it.name}" is approved and going to production.` : `Thanks, we got your changes for "${it.name}". We will send a new proof soon.`;
           return redirect(`${self}?flash=${encodeURIComponent(msg)}`);
         } catch (e) {
@@ -199,12 +202,12 @@ const route = async (event) => {
       let poC = null; try { poC = await getConfig(`po-${project.id}`, null); } catch { /* none */ }
       const todayF = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
       let admP = {}; try { admP = await getConfig('admin-settings', {}); } catch { /* defaults */ }
-      const extras = estimateApprovalHtml(pm[1], project, { depositPct: admP.depositPct ?? 50, notes: admP.estimateNotes ?? 'Prices are good for 30 days. A 50% deposit starts production.' });
+      const extras = estimateApprovalHtml(pm[1], project, { depositPct: admP.depositPct ?? 50, notes: admP.estimateNotes ?? `Prices are good for 30 days. A ${admP.depositPct ?? 50}% deposit starts production.` });
       const tgF = stepTargetsFrom(await getConfig('workflow-published', null).catch(() => null));
       const side = forecastHtml((() => { const v = readyForecast(mine, { steps: STEPS, targets: tgF, today: todayF, due: null }); const x = expectedFor(project, mine, todayF); return v.state === 'ready' ? v : { ...v, likely: x.customerDate || v.likely, due: project.due }; })()) + poFormHtml(pm[1], poC) + payPanel(project.balance ?? Math.round((Number(project.total) || 0) * 50) / 100, cardFee) + extrasHtml({ token: pm[1], comments: px.comments || [], priceChange: px.priceChange, threshold, emailed: !!px.emailed });
       const axV = await getConfig('admin-extra', null).catch(() => null);
       const approval = axV && Array.isArray(axV.approvalChecks) && axV.approvalChecks.length ? { list: axV.approvalChecks, policy: axV.proofPolicy || '' } : null;
-      return html(portalPage({ project, items: mine, token: pm[1], flash: q.flash, error: q.error, extras, side, proofLinks, approval }));
+      return html(portalPage({ project, items: mine, token: pm[1], flash: q.flash, error: q.error, extras, side, proofLinks, approval, shop: { name: admP.companyName || 'FASTSIGNS of Northern Kentucky', phone: admP.phone || '(859) 555-0100' } }));
     }
 
     if (path === '/static/editor.js') return { statusCode: 200, headers: { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'max-age=300', 'x-content-type-options': 'nosniff' }, body: EDITOR_JS };
@@ -1105,7 +1108,7 @@ const route = async (event) => {
       const origin = suggestOrigination(cu.facts || {});
       const body = buildPlaceholderEstimate({ project: p, lines: surveyLines(survey), settings: { taxGroupId: tax.id, originationId: origin.id } });
       let adm6 = {}; try { adm6 = await getConfig('admin-settings', {}); } catch { /* defaults */ }
-      const notes6 = adm6.estimateNotes ?? 'Prices are good for 30 days. A 50% deposit starts production.';
+      const notes6 = adm6.estimateNotes ?? `Prices are good for 30 days. A ${adm6.depositPct ?? 50}% deposit starts production.`;
       const pre6 = ((await getConfig('admin-settings', {}).catch(() => ({}))) || {}).docPrefix ?? '226';
       const page6 = estimatePage({ user, p, survey, body, plan, tax, origin, prefix: pre6 });
       const dest6 = await getConfig(`dest-${p.id}`, null).catch(() => null);
@@ -1161,7 +1164,7 @@ const route = async (event) => {
         const hist0 = (await recentLog(200).catch(() => [])).filter((l) => ids0.has(l.itemId || l.item || l.id)).map((l) => ({ ...l, itemName: nm0[l.itemId || l.item || l.id] }));
         standing += historyHtml(hist0, (id) => stepById(id)?.name || id || '');
         { const sc0 = await getConfig(`scope-${p.id}`, null).catch(() => null); let v0 = await getConfig(`visit-${p.id}`, null).catch(() => null); v0 = v0 || seedVisit(p, sampleData()); extrasP.scope = { text: (sc0 && sc0.text) || '', at: sc0 && sc0.at, by: sc0 && sc0.by, items: (v0.items || []).filter((x) => !x.dropped).length, meas: (v0.items || []).reduce((a, x) => a + (x.meas || []).length, 0), visits: v0.visits || 0, needs: (v0.needs || []).length }; }
-        extrasP.side = { dest: dest0, po: po0, email: (cu0.contact || {}).email || '', phone: (cu0.company || {}).phone || (cu0.contact || {}).phone || '', expected: expectedFor(p, its0, today0) };
+        extrasP.side = { itemHandoffs: its0.filter((i) => i.handoff).map((i) => [i.handoff, i.name]), dest: dest0, po: po0, email: (cu0.contact || {}).email || '', phone: (cu0.company || {}).phone || (cu0.contact || {}).phone || '', expected: expectedFor(p, its0, today0) };
         standing += poPanel(p.id, po0 || {}, po0 && po0.poAmount ? poCheck({ poAmount: po0.poAmount, total: p.total, tax: p.tax || 0, taxExempt: !!(co0.isTaxExempt ?? co0.IsTaxExempt ?? co0.taxExempt) }) : null);
       }
       if (mode === 'demo') {
@@ -1357,7 +1360,7 @@ const route = async (event) => {
       const admT2 = await getConfig('admin-settings', {}).catch(() => ({}));
       const stN = st.map((s) => ({ ...s, stepName: stepById(s.step)?.name || s.step }));
       const slip = slipping({ projects: markOnBoard(prT, its), tasksBy, mailBy, stuck: stN, team: teamT, today: todayT });
-      return html(teamPage({ user, stuck: st, items: its, stepName: (id) => stepById(id)?.name || id, slip, reps: repRows({ projects: prT, tasksBy, mailBy, stuck: stN, today: todayT, goal: admT2.monthSales ?? 40000 }), show: ['Email', 'Task', 'Project', 'Customer'].includes(q.show) ? q.show : '', flash: q.flash || '' }));
+      return html(teamPage({ user, stuck: st, items: its, stepName: (id) => stepById(id)?.name || id, slip, reps: repRows({ projects: prT, tasksBy, mailBy, stuck: stN, today: todayT, goal: admT2.monthSales ?? 40000, team: teamT }), show: ['Email', 'Task', 'Project', 'Customer'].includes(q.show) ? q.show : '', flash: q.flash || '' }));
     }
     if (path === '/team/nudge' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);

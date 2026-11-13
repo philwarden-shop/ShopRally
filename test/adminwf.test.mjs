@@ -149,3 +149,9 @@ test('missing next step ignores projects moving on a board', () => {
   const ps = [{ id: 'a', lane: 'progress' }, { id: 'b', lane: 'progress', onBoard: true }];
   assert.deepEqual(missingNextStep(ps, []).map((x) => x.projectId), ['a']);
 });
+import { portalPage } from '../app/proofs.mjs';
+test('order page: shop name/phone from settings, signer and version on approval', () => {
+  const h = portalPage({ project: { id: 'p', company: 'Acme', name: 'Sign', contact: 'Jo Lee' }, items: [{ id: 'i1', name: 'Sign', step: 'proofwait' }], token: 't', shop: { name: 'FASTSIGNS of Somewhere', phone: '(555) 111-2222' } });
+  assert.ok(h.includes('FASTSIGNS of Somewhere') && h.includes('(555) 111-2222') && !h.includes('555-0100'));
+  assert.ok(h.includes('name="signer"') && h.includes('value="Jo Lee"') && h.includes('name="version"'));
+});
