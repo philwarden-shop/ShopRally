@@ -94,3 +94,12 @@ test('credit, PO check, machines, folders, transition and CoreBridge rules save'
   ({ x } = mx2(x, { do: 'transdel', i: '0' })); assert.equal(x.transition.length, 0);
   ({ x } = mx2(x, { do: 'cbchanges', cb_confirm: 'on' })); assert.deepEqual(x.cbChanges, { confirm: true, dueDates: false, dragComplete: false });
 });
+import { boardPage as wb } from '../app/boards.mjs';
+import { visibleColumns } from '../app/workflow.mjs';
+test('boards use the saved hold reasons', () => {
+  const it = { id: 'i1', name: 'Sign', step: 'wip', projectId: 'p1', person: 'Phil', ref: 'R1' };
+  const h = wb({ user, board: 'production', items: [it], view: 'list', columns: visibleColumns('production', []), log: [], flash: '', holdReasons: ['Waiting on landlord'] });
+  assert.ok(h.includes('hold|Waiting on landlord') && !h.includes('hold|Need info: vendor'));
+  const h2 = wb({ user, board: 'production', items: [it], view: 'list', columns: visibleColumns('production', []), log: [], flash: '' });
+  assert.ok(h2.includes('hold|Need info: vendor'));
+});

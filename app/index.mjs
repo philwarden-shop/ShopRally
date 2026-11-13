@@ -349,7 +349,7 @@ const route = async (event) => {
       const clChecks = await getConfig('checks', {}).catch(() => ({}));
       const custFlags = {};
       for (const cn of [...new Set(items.map((x) => x.customer).filter(Boolean))]) { const cp1 = await getConfig(`customer-${cSlug2(cn)}`, null).catch(() => null); if (cp1 && cp1.flag) custFlags[cn] = cp1.flag; }
-      return html(workBoard({ user, board, items, view, columns: visibleColumns(board, hidden), log, flash: q.flash, filters, shipInfo, checklists: { saved: clSaved, checks: clChecks }, custFlags }), 200, setCookies);
+      return html(workBoard({ user, board, items, view, columns: visibleColumns(board, hidden), log, flash: q.flash, filters, shipInfo, checklists: { saved: clSaved, checks: clChecks }, custFlags, holdReasons: ((((await getConfig('admin-extra', null).catch(() => null)) || {}).tags || []).find((g) => g && g.name === 'Hold reasons') || {}).tags }), 200, setCookies);
     }
     const mv = path.match(/^\/items\/([\w-]+)\/move$/);
     if (mv && method === 'POST') {
@@ -530,7 +530,7 @@ const route = async (event) => {
       if (method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
         const f = formBody(event);
-        try { seqs = mergeSequenceForm(seqs, f.id, f); await putConfig('sequences', seqs); const s0 = seqs.find((x) => x.id === f.id); return redirect('/admin/sequences?flash=' + encodeURIComponent(f.do === 'toggle' ? `${s0.name} is ${s0.on ? 'on' : 'off'}.` : f.do === 'reset' ? 'Back to the prebuilt steps.' : f.add ? 'Step added. Fill it in and save.' : 'Saved.') + '#seq-' + encodeURIComponent(f.id)); }
+        try { seqs = mergeSequenceForm(seqs, f.id, f); await putConfig('sequences', seqs); const s0 = seqs.find((x) => x.id === f.id); const bkS = q.back ? safeBack(q.back, '/admin/sequences') : '/admin/sequences'; return redirect(bkS + (bkS.includes('?') ? '&' : '?') + 'flash=' + encodeURIComponent(f.do === 'toggle' ? `${s0.name} is ${s0.on ? 'on' : 'off'}.` : f.do === 'reset' ? 'Back to the prebuilt steps.' : f.add ? 'Step added. Fill it in and save.' : 'Saved.') + (q.back ? '#seqs-h' : '#seq-' + encodeURIComponent(f.id))); }
         catch (e) { return redirect('/admin/sequences?flash=' + encodeURIComponent('Not saved: ' + e.message)); }
       }
       return html(sequencesPage({ page: (o) => simplePage0(o), user, seqs, flash: q.flash || '' }));
@@ -709,7 +709,7 @@ const route = async (event) => {
       const listsX = (tab === 'sales' || tab === 'orders') ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
       const appsX = {};
       if (tab === 'orders' || tab === 'cb') for (const a of ['cardpointe', 'clarity', 'xps', 'corebridge']) { try { appsX[a] = appStatus(a, await readApp(a)).connected; } catch { appsX[a] = false; } }
-      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, ...wfX }));
+      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, seqs: tab === 'sales' ? await getConfig('sequences', null).catch(() => null) : null, ...wfX }));
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);

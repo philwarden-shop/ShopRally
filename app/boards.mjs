@@ -25,11 +25,13 @@ const BOARD_CSS = `
 .log li{margin:4px 0}
 `;
 
+// Hold reasons come from Admin › Workflow › Tags when saved there (Phil, Nov 13); otherwise the standard list.
+let HOLDS = HOLD_REASONS;
 export function moveForm(item, back) {
   if (item.step === 'done') return '<span style="font-size:12px;color:#1f6a43;font-weight:700">Complete</span>';
   const opts = nextSteps(item.step, item.heldFrom).filter((s) => s.id !== 'hold')
     .map((s) => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-  const holds = item.step === 'hold' ? '' : `<optgroup label="Put on Hold…">${HOLD_REASONS.map((r) => `<option value="hold|${esc(r)}">${esc(r)}</option>`).join('')}</optgroup>`;
+  const holds = item.step === 'hold' ? '' : `<optgroup label="Put on Hold…">${HOLDS.map((r) => `<option value="hold|${esc(r)}">${esc(r)}</option>`).join('')}</optgroup>`;
   return `<form class="mv" method="post" action="/items/${esc(item.id)}/move"><input type="hidden" name="back" value="${esc(back)}">
     <label style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)" for="mv-${esc(item.id)}">Move ${esc(item.name)} to</label>
     <select id="mv-${esc(item.id)}" name="to">${opts}${holds}</select><button>Move</button></form>${['salesrev', 'proofwait'].includes(item.step) ? ` <a href="/items/${esc(item.id)}/send-proof" style="font-size:12px;font-weight:700">${item.step === 'proofwait' ? 'Resend proof' : 'Send proof'}</a>` : ''}${item.projectId ? ` <a href="/projects/${esc(item.projectId)}?mode=demo&tab=notes" style="font-size:12px;font-weight:600" title="Type @ and a name to notify someone">+ Add a Note</a>` : ''}`;
@@ -66,7 +68,8 @@ function cell(key, it) {
   }
 }
 
-export function boardPage({ user, board, items, view, columns, log, flash, filters = {}, shipInfo = {}, checklists = null, custFlags = {} }) {
+export function boardPage({ user, board, items, view, columns, log, flash, filters = {}, shipInfo = {}, checklists = null, custFlags = {}, holdReasons = null }) {
+  HOLDS = Array.isArray(holdReasons) && holdReasons.length ? holdReasons : HOLD_REASONS;
   const steps = boardSteps(board);
   const ids = new Set(steps.map((s) => s.id));
   const all = items.filter((it) => ids.has(it.step) || (it.step === 'hold' && ids.has(it.heldFrom)));
