@@ -21,15 +21,16 @@ const daysBetween = (a, b) => Math.floor((new Date(b) - new Date(a)) / 86400000)
 //   sequence: the SalesMax sequence that produced it ('checkin' | 'winback' | 'prospect' | 'reorder' | 'needs')
 //   paidOrders: number of paid orders this company has had before
 //   lastPaidOrderAt: date of the company's last paid order
-export function suggestOrigination(f = {}, today = new Date()) {
+// dormantDays: the one Admin setting (Admin › Sales › Keep-Warm Rules); 180 when not set.
+export function suggestOrigination(f = {}, today = new Date(), dormantDays = DORMANT_DAYS) {
   const pick = (key, reason) => ({ key, ...ORIGINATIONS[key], reason });
   const channel = String(f.channel || '').toLowerCase();
   const customerStarted = f.startedBy === 'customer' || INBOUND_CHANNELS.has(channel);
   const paid = Number(f.paidOrders || 0);
-  const dormant = paid > 0 && f.lastPaidOrderAt && daysBetween(f.lastPaidOrderAt, today) >= DORMANT_DAYS;
+  const dormant = paid > 0 && f.lastPaidOrderAt && daysBetween(f.lastPaidOrderAt, today) >= dormantDays;
 
   if (customerStarted) return pick('inbound', `The customer reached out first${channel ? ` (${channel})` : ''}.`);
-  if (f.sequence === 'winback' || dormant) return pick('reactivated', f.sequence === 'winback' ? 'Came from the Win-back sequence.' : `No paid order in ${DORMANT_DAYS}+ days before this.`);
+  if (f.sequence === 'winback' || dormant) return pick('reactivated', f.sequence === 'winback' ? 'Came from the Win-back sequence.' : `No paid order in ${dormantDays}+ days before this.`);
   if (paid === 0) return pick('newOutbound', 'New account the salesperson started.');
   return pick('expanded', f.sequence ? `Salesperson found it through the ${f.sequence} sequence with an active customer.` : 'Salesperson found a new opportunity with an active customer.');
 }

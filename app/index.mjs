@@ -1070,7 +1070,7 @@ const route = async (event) => {
       if (!p) return html(simplePage({ user, mode, title: 'Not found', message: 'That project is not here.', tab: 'Projects' }), 404);
       const cu = customerFor(p);
       const tax = taxGroupFor(cu.company);
-      let origin = suggestOrigination(cu.facts || {});
+      let origin = suggestOrigination(cu.facts || {}, new Date(), Number(((await getConfig('admin-settings', {}).catch(() => ({}))) || {}).dormantDays) || 180);
       const survey = surveyFor(p.id);
       if (method !== 'POST') {
         if (q.draft && survey) { const d = draftFromSurvey(survey); return html(builderPage({ user, p, lines: readLines(d.form), origin, draft: d, hasSurvey: true })); }
@@ -1105,7 +1105,7 @@ const route = async (event) => {
       const cu = customerFor(p);
       const tax = taxGroupFor(cu.company);
       const plan = planCustomerSync({ company: cu.company, contact: cu.contact });
-      const origin = suggestOrigination(cu.facts || {});
+      const origin = suggestOrigination(cu.facts || {}, new Date(), Number(((await getConfig('admin-settings', {}).catch(() => ({}))) || {}).dormantDays) || 180);
       const body = buildPlaceholderEstimate({ project: p, lines: surveyLines(survey), settings: { taxGroupId: tax.id, originationId: origin.id } });
       let adm6 = {}; try { adm6 = await getConfig('admin-settings', {}); } catch { /* defaults */ }
       const notes6 = adm6.estimateNotes ?? `Prices are good for 30 days. A ${adm6.depositPct ?? 50}% deposit starts production.`;
@@ -1212,6 +1212,14 @@ const route = async (event) => {
       let adm = {}; try { adm = await getConfig('admin-settings', {}); } catch { /* defaults */ }
       const [{ projects }, log] = await Promise.all([listProjects('demo'), recentLog(200).catch(() => [])]);
       const allItems = await listItems();
+      // Keep-warm check-ins (review fix): quiet customers owned by this person get one check-in task each, once.
+      try {
+        const custsK = listCustomers(projects).filter((c) => keyOf(c.salesperson) === who && !c.projects.some((pp) => !['complete', 'lost'].includes(pp.lane)));
+        const profsK = await Promise.all(custsK.map((c) => getConfig(`customer-${c.id}`, {}).catch(() => ({}))));
+        const have = new Set(tasks.map((t) => t.id)); const add = [];
+        custsK.forEach((c, n) => { const w = warmth(c, profsK[n], today, adm); if (w.state === 'Active') return; const id = `kw-${c.id}-${String(w.last || 'none').slice(0, 7)}`; if (have.has(id) || add.length >= 10) return; add.push({ id, kind: 'call', title: `${w.state === 'Dormant' ? 'Win back' : 'Check in with'} ${c.name}${w.days != null ? ` · no contact in ${w.days} days` : ''}`, customer: c.name, projectId: '', due: today, done: false, label: w.state === 'Dormant' ? 'Win-back' : 'Keep warm' }); });
+        if (add.length) { tasks = [...tasks, ...add]; await putConfig(`tasks-${who}`, tasks); }
+      } catch { /* keep-warm tasks are best-effort */ }
       const upA = comingUpToday(allItems, today), hdA = demoHandled(today);
       const proofA = proofPanel(proofReminders(allItems, new Date(), adm.proofReminderDays ?? 2), allItems, adm.proofRoundLimit ?? 3);
       const side = coordinatorHtml(upA, hdA) + proofA;

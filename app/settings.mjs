@@ -204,7 +204,8 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
   const list = FIELDS[t];
-  const shown = list.filter((x) => !(t === 'work' && x[0].startsWith('target_')));
+  // One place for each rule: stage targets live in Stage Time Targets, keep-warm/dormant days in Keep-Warm Rules.
+  const shown = list.filter((x) => !(t === 'work' && x[0].startsWith('target_')) && !(t === 'sales' && ['keepWarmDays', 'dormantDays'].includes(x[0])));
   const main = shown.filter((x) => !x[5]);
   const adv = shown.filter((x) => x[5]);
   const saved = s._savedAt?.[t];
