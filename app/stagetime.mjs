@@ -1,7 +1,8 @@
 // Stage time left (mockup pill "Stage time left · 1 day of 4 in In production"). SalesMax records the day a project
 // enters each stage (lane-since config) and compares it with the stage target set in Admin › Work.
 export const LANE_NAMES = { prospect: 'Prospect', estimate: 'Estimate', progress: 'In production', built: 'Built', complete: 'Complete' };
-export const LANE_TARGET_DEFAULTS = { prospect: 14, estimate: 7, progress: 10, built: 3 };
+// Same defaults as Admin › Workflow › Stage Time Targets (salesrules STAGES), so every page agrees.
+export const LANE_TARGET_DEFAULTS = { prospect: 14, estimate: 7, progress: 4, built: 2 };
 const days = (a, b) => Math.round((new Date(b + 'T12:00:00Z') - new Date(a + 'T12:00:00Z')) / 86400000);
 export function trackLanes(since = {}, projects = [], today) {
   let changed = false; const next = { ...since };

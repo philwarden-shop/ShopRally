@@ -119,3 +119,28 @@ test('add prospect: needs chips name the project, source and notes kept', () => 
   const h = newProjectPage({ user, f: { needs: ['Banners'], temperature: 'Hot' } });
   assert.ok(/value="Banners" checked/.test(h) && /value="Hot" checked/.test(h) && h.includes('name="origination"'));
 });
+import { assignLead } from '../app/adminx.mjs';
+test('auto-assign: round robin by fewest this month, counts tally, -- before any data', () => {
+  const x = { autoAssign: true, rotation: [{ name: 'Ann', on: true }, { name: 'Bob', on: true }, { name: 'Cy', on: false }] };
+  let r = assignLead(x, null, '2026-11-13'); assert.equal(r.name, 'Ann');
+  r = assignLead(x, r.log, '2026-11-13'); assert.equal(r.name, 'Bob');
+  r = assignLead(x, r.log, '2026-11-14'); assert.equal(r.name, 'Ann'); assert.deepEqual(r.log.counts, { Ann: 2, Bob: 1 });
+  assert.equal(assignLead({ ...x, autoAssign: false }, null, '2026-11-13'), null);
+  const r2 = assignLead(x, r.log, '2026-12-01'); assert.deepEqual(r2.log.counts, { Bob: 1 });
+  const h0 = settingsPage({ user, settings: {}, tab: 'sales', extra: x });
+  assert.ok(h0.includes('-- this month'));
+  const h1 = settingsPage({ user, settings: {}, tab: 'sales', extra: x, leadLog: { month: new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' }).slice(0, 7), counts: { Ann: 3 } } });
+  assert.ok(h1.includes('3 this month') && h1.includes('0 this month'));
+});
+test('add prospect from an email: banner and duplicate warning', () => {
+  const h = newProjectPage({ user, f: { company: 'Acme', contact: 'Jo', email: 'jo@acme.com' }, from: { from: 'Jo', subject: 'Need a banner' }, dupes: [{ id: 'p9', name: 'Lobby sign' }] });
+  assert.ok(h.includes('Started from an email') && h.includes('Need a banner') && h.includes('Already open for this customer') && h.includes('/projects/p9'));
+  assert.ok(h.includes('value="jo@acme.com"'));
+});
+import { stuckItems, stepTargetsFrom } from '../app/workflow.mjs';
+test('stuck uses the published workflow target days', () => {
+  const it = { id: 'a', step: 'wip', movedAt: '2026-11-10T12:00:00Z' };
+  const now = new Date('2026-11-13T12:00:00Z');
+  assert.equal(stuckItems([it], now).length, 0);
+  assert.equal(stuckItems([it], now, stepTargetsFrom([{ id: 'wip', days: 2 }])).length, 1);
+});

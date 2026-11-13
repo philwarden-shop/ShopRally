@@ -42,8 +42,8 @@ export const FIELDS = {
     ['proofReminderDays', 'Remind the customer about a proof after (days)', 'number', 2, '', false, [1, 14]],
     ['target_prospect', 'Days a project can sit in Prospect', 'number', 14, 'Shows as “Stage time left” on the project.', false, [1, 120]],
     ['target_estimate', 'Days in Estimate', 'number', 7, '', false, [1, 120]],
-    ['target_progress', 'Days in In production', 'number', 10, '', false, [1, 120]],
-    ['target_built', 'Days in Built (waiting for hand-off)', 'number', 3, '', false, [1, 120]],
+    ['target_progress', 'Days in In production', 'number', 4, '', false, [1, 120]],
+    ['target_built', 'Days in Built (waiting for hand-off)', 'number', 2, '', false, [1, 120]],
     ['qcBy', 'Quality control signed off by', 'select', 'Production lead', '', false, ['Production lead', 'Whoever built it', 'The salesperson']],
   ],
   orders: [
@@ -200,7 +200,7 @@ export function collapseSections(html) {
 }
 const ACOL_CSS = '<style>details.acol{background:#ffffff;border:1px solid #e3e7ee;border-radius:12px}details.acol>summary{list-style:none;cursor:pointer;padding:14px 20px;min-height:52px;box-sizing:border-box;display:flex;align-items:center}details.acol>summary::-webkit-details-marker{display:none}details.acol>summary:hover{background:#f8f9fb;border-radius:12px}.acolt{display:grid;grid-template-columns:16px auto;column-gap:10px;align-items:center}.acolt b{font-size:16px;font-weight:700;color:#1b2436}.acold{grid-column:2;font-size:13px;color:#5a6478;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.acolchev{color:#5a6478;transition:transform .15s}details.acol[open]>summary .acolchev{transform:rotate(90deg)}details.acol[open]>summary .acold{display:none}details.acol[open]>summary{border-bottom:1px solid #eef1f5;border-radius:12px 12px 0 0}details.acol>section{border:0!important;border-radius:0 0 12px 12px!important}details.acol>section>div:first-child h2,details.acol>section>h2:first-child,details.acol>section>div:first-child>div:first-child>h2{display:none!important}details.acol>section>div:first-child:has(>h2+.itip:last-child){display:none!important}details.acol>section>div:first-child h2+p,details.acol>section>div:first-child>div>h2+p{margin-top:0!important}</style>';
 const ACOL_BAR = '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:-12px"><button type="button" data-acol="open" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Expand All</button><button type="button" data-acol="close" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Collapse All</button></div>';
-export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales', apps = {}, seqs = null }) {
+export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales', apps = {}, seqs = null, leadLog = null }) {
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
   const list = FIELDS[t];
@@ -220,7 +220,7 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const locs = t === 'company' ? locationsCard({ locs: [{ name: s.companyName || 'FASTSIGNS of Northern Kentucky', dot: '#4fb3c9', here: true, conns: [['CoreBridge', s.cbSync ? 'Connected' : 'Off', !!s.cbSync], ['Google Workspace', 'Not connected yet', false], ['Phone', s.phone || 'Not set', s.phone ? true : null]] }, { name: 'Second location', dot: '#f2b84b', conns: [['CoreBridge', 'Needs its key', false], ['Google Workspace', 'Not connected yet', false]] }] }) : '';
   const sample = t === 'company' ? adminCard({ title: 'Sample Data', desc: 'Puts every sample task, board, customer note and approval back the way it started. Admin settings stay.', body: '<form method="post" action="/admin/reset-demo" style="padding:12px 20px 16px"><button class="btn">Reset Sample Data</button></form>' }) : '';
   const rs = (t === 'sales' || t === 'work') ? rulesSections(s, `/admin?tab=${t}`) : null;
-  const sx = t === 'sales' ? salesExtras(extra, { tip: infoTip, seqs }) : null;
+  const sx = t === 'sales' ? salesExtras(extra, { tip: infoTip, seqs, leadLog }) : null;
   const wx = t === 'work' ? workflowExtras(extra, { checklists, custom, clBoard: cl }) : null;
   const L = { ...LIST_DEFAULTS, ...(lists || {}) };
   const nv = (a) => `${(a || []).length} value${(a || []).length === 1 ? '' : 's'}`;

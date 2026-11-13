@@ -17,7 +17,7 @@ import { standingHtml } from './standing.mjs';
 import { listCustomers, customersPage, customerPage, mergeProfile, logActivity, voteInsight, warmth, addNeed, activityFromTask, slug as cSlug , flagStrip, slug as cSlug2 , lastConversations } from './custrecord.mjs';
 import { extrasHtml, addComment, decidePrice, demoPriceChange, DEFAULT_PRICE_THRESHOLD, customerPo, poFormHtml, readyForecast, forecastHtml, approveEstimateOnline, estimateApprovalHtml } from './portalx.mjs';
 import { settingsPage, mergeSettings , withAdminNav } from './settings.mjs';
-import { mergeExtra } from './adminx.mjs';
+import { mergeExtra, assignLead } from './adminx.mjs';
 import { parseChecklistRows } from './adminwf.mjs';
 import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord } from './simpleboards.mjs';
 import { roleGroups, roleActivitiesPage } from './roleview.mjs';
@@ -60,7 +60,7 @@ import { withTemplateDefaults, mergeTemplateForm, templatesPage, templatePicker,
 import { diffPriceLists, findAffected, resolveAlert, priceTodos, priceBox, DEMO_SHARED } from './pricewatch.mjs';
 import { historyStep, historyPanel, newState, saveRecords } from './history.mjs';
 import { saveProjects } from './data.mjs';
-import { demoTeam, addMember, removeMember, teamAdminPage, isOwner } from './team.mjs';
+import { demoTeam, addMember, removeMember, teamAdminPage, isOwner, keyOf } from './team.mjs';
 import { projectTasksHtml, historyHtml, approveProject, approveHtml, markLost, lostHtml } from './projectx.mjs';
 import { groupTodos } from './activities.mjs';
 import { addFeedback, feedbackPage, feedbackInbox, setFeedbackStatus, safePath as fbSafePath } from './feedback.mjs';
@@ -69,7 +69,7 @@ import { demoJobs, tick, fieldPage } from './field.mjs';
 import { seedVisit, visitAct, visitPage, startPage as svStartPage } from './sitevisit.mjs';
 import { needsShippingAccount, shippingDraft, orderComplete, completedDraft, draftsPanel, demoInvoices, pastDuePage } from './drafts.mjs';
 import { slug as custSlug } from './custrecord.mjs';
-import { stuckItems, stepById, STEPS, STEP_TARGET_DAYS } from './workflow.mjs';
+import { stuckItems, stepById, STEPS, STEP_TARGET_DAYS, stepTargetsFrom } from './workflow.mjs';
 import { baseline, editDraft, builderPage as wfBuilderPage, proofReminders, proofPanel, interpret, addRule } from './wfbuilder.mjs';
 import { reconPage, demoPayments, markEntered, setupPage, answer, answersToChanges } from './setup.mjs';
 import { coordinatorPanel, coordSig } from './ops.mjs';
@@ -197,7 +197,8 @@ const route = async (event) => {
       const todayF = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
       let admP = {}; try { admP = await getConfig('admin-settings', {}); } catch { /* defaults */ }
       const extras = estimateApprovalHtml(pm[1], project, { depositPct: admP.depositPct ?? 50, notes: admP.estimateNotes ?? 'Prices are good for 30 days. A 50% deposit starts production.' });
-      const side = forecastHtml((() => { const v = readyForecast(mine, { steps: STEPS, targets: STEP_TARGET_DAYS, today: todayF, due: null }); const x = expectedFor(project, mine, todayF); return v.state === 'ready' ? v : { ...v, likely: x.customerDate || v.likely, due: project.due }; })()) + poFormHtml(pm[1], poC) + payPanel(project.balance ?? Math.round((Number(project.total) || 0) * 50) / 100, cardFee) + extrasHtml({ token: pm[1], comments: px.comments || [], priceChange: px.priceChange, threshold, emailed: !!px.emailed });
+      const tgF = stepTargetsFrom(await getConfig('workflow-published', null).catch(() => null));
+      const side = forecastHtml((() => { const v = readyForecast(mine, { steps: STEPS, targets: tgF, today: todayF, due: null }); const x = expectedFor(project, mine, todayF); return v.state === 'ready' ? v : { ...v, likely: x.customerDate || v.likely, due: project.due }; })()) + poFormHtml(pm[1], poC) + payPanel(project.balance ?? Math.round((Number(project.total) || 0) * 50) / 100, cardFee) + extrasHtml({ token: pm[1], comments: px.comments || [], priceChange: px.priceChange, threshold, emailed: !!px.emailed });
       const axV = await getConfig('admin-extra', null).catch(() => null);
       const approval = axV && Array.isArray(axV.approvalChecks) && axV.approvalChecks.length ? { list: axV.approvalChecks, policy: axV.proofPolicy || '' } : null;
       return html(portalPage({ project, items: mine, token: pm[1], flash: q.flash, error: q.error, extras, side, proofLinks, approval }));
@@ -219,10 +220,13 @@ const route = async (event) => {
           const n = (await getConfig('qr-counter', 0).catch(() => 0)) + 1;
           const out = requestToRecords(r, { qrNumber: n, today: today12 });
           await putConfig('qr-counter', n);
+          // Auto-assign (Admin › Sales › New Lead Assignment): round robin, counted per month.
+          let owner = 'phil';
+          { const as = assignLead(await getConfig('admin-extra', null).catch(() => null), await getConfig('lead-assign', null).catch(() => null), today12); if (as) { out.project.salesperson = as.name; owner = keyOf(as.name) || 'phil'; out.task.assignee = owner; await putConfig('lead-assign', as.log); } }
           const xp = await getConfig('extra-projects', []).catch(() => []);
           if (xp.filter((p) => p.source === 'web-request').length >= 300) throw new Error('we could not take more online requests right now. Please call us');
           await putConfig('extra-projects', [...xp, out.project]);
-          await putConfig('tasks-phil', [...(await getConfig('tasks-phil', demoTasks(today12)).catch(() => demoTasks(today12))), out.task]);
+          await putConfig(`tasks-${owner}`, [...(await getConfig(`tasks-${owner}`, owner === 'phil' ? demoTasks(today12) : []).catch(() => [])), out.task]);
           return html2(requestPage({ done: out.qr }));
         } catch (e) {
           if (e.message === 'spam') return html2(requestPage({ done: 'request' }));
@@ -709,7 +713,7 @@ const route = async (event) => {
       const listsX = (tab === 'sales' || tab === 'orders') ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
       const appsX = {};
       if (tab === 'orders' || tab === 'cb') for (const a of ['cardpointe', 'clarity', 'xps', 'corebridge']) { try { appsX[a] = appStatus(a, await readApp(a)).connected; } catch { appsX[a] = false; } }
-      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, seqs: tab === 'sales' ? await getConfig('sequences', null).catch(() => null) : null, ...wfX }));
+      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, seqs: tab === 'sales' ? await getConfig('sequences', null).catch(() => null) : null, leadLog: tab === 'sales' ? await getConfig('lead-assign', null).catch(() => null) : null, ...wfX }));
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
@@ -927,7 +931,11 @@ const route = async (event) => {
         try { { const raw0 = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || ''); f.needs = new URLSearchParams(raw0).getAll('needs'); } const next = newProject(list, f, { salesperson: user.name || user.email }); await putConfig('extra-projects', next); const nid = next[next.length - 1].id; return redirect(f.go === 'estimate' ? `/projects/${nid}/build` : `/projects/${nid}?mode=demo`); }
         catch (e) { return html(newProjectPage({ user, f, error: 'Not created: ' + e.message + '.' }), 400); }
       }
-      return html(newProjectPage({ user, f: { company: q.company || '', name: String(q.name || '').slice(0, 120) } }));
+      { const cut = (v, n) => String(v || '').slice(0, n);
+        const allP = [...(await listProjects('demo').catch(() => ({ projects: [] }))).projects, ...(await getConfig('extra-projects', []).catch(() => []))];
+        const lc = cut(q.company, 120).trim().toLowerCase(); const le = cut(q.email, 120).trim().toLowerCase();
+        const dupes = (lc || le) ? allP.filter((p) => (lc && String(p.company || '').toLowerCase() === lc) || (le && String(p.email || '').toLowerCase() === le)).filter((p) => !['complete', 'lost'].includes(p.lane)).slice(0, 5) : [];
+        return html(newProjectPage({ user, dupes, from: q.from ? { subject: cut(q.subject, 140), from: cut(q.from, 120) } : null, f: { company: cut(q.company, 120), name: cut(q.name, 120), contact: cut(q.contact, 80), email: cut(q.email, 120), notes: cut(q.notes, 2000), origination: q.from ? 'inbound' : '' } })); }
     }
     const emm = path.match(/^\/email(?:\/(ooo|send|[\w-]+\/(archive|spam|notspam|inbox|snooze|wake|unsend|unschedule)))?$/);
     if (emm) {
@@ -1336,7 +1344,8 @@ const route = async (event) => {
     }
     if (path === '/risks' || path === '/team') {
       const its = await listItems();
-      const st = stuckItems(its).map((s) => ({ ...its.find((i) => i.id === s.id), ...s }));
+      const tgT = stepTargetsFrom(await getConfig('workflow-published', null).catch(() => null));
+      const st = stuckItems(its, new Date(), tgT).map((s) => ({ ...its.find((i) => i.id === s.id), ...s }));
       const todayT = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
       const teamT = await getConfig('team', demoTeam()).catch(() => demoTeam());
       const tasksBy = {}, mailBy = {};

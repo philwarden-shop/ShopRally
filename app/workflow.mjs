@@ -146,7 +146,9 @@ export function qcTaskFor(item, { salesperson, delegates = {} } = {}) {
 // or sitting in a step longer than its time target, shows on Risks > Stuck and escalates.
 export const FOLLOW_UP_DAYS = { hold: 2, escalateAfter: 5 };
 export const STEP_TARGET_DAYS = { prep: 2, queue: 2, indesign: 3, proofqc: 1, salesrev: 1, proofwait: 3, files: 1, wip: 4, vended: 10, qc: 1, built: 3 };
-export function stuckItems(items, now = new Date()) {
+// targets: per-step days from the published workflow (Admin › Workflow Builder); the built-in list is the fallback.
+export function stepTargetsFrom(published) { const t = { ...STEP_TARGET_DAYS }; for (const st of Array.isArray(published) ? published : []) if (st && st.id && Number(st.days) > 0) t[st.id] = Number(st.days); return t; }
+export function stuckItems(items, now = new Date(), targets = STEP_TARGET_DAYS) {
   const days = (iso) => (now - new Date(iso)) / 86400000;
   const out = [];
   for (const it of items) {
@@ -154,8 +156,8 @@ export function stuckItems(items, now = new Date()) {
     const age = days(it.movedAt);
     if (it.step === 'hold') {
       if (age >= FOLLOW_UP_DAYS.hold) out.push({ id: it.id, why: `On hold ${Math.floor(age)} days: ${it.holdReason}`, escalate: age >= FOLLOW_UP_DAYS.escalateAfter });
-    } else if (STEP_TARGET_DAYS[it.step] && age > STEP_TARGET_DAYS[it.step]) {
-      out.push({ id: it.id, why: `${Math.floor(age)} days in ${stepById(it.step)?.name} (target ${STEP_TARGET_DAYS[it.step]})`, escalate: age > STEP_TARGET_DAYS[it.step] * 2 });
+    } else if (targets[it.step] && age > targets[it.step]) {
+      out.push({ id: it.id, why: `${Math.floor(age)} days in ${stepById(it.step)?.name} (target ${targets[it.step]})`, escalate: age > targets[it.step] * 2 });
     }
   }
   return out;
