@@ -7,7 +7,8 @@ test('team members: add with role and location, no duplicates, cannot remove you
   let t = T.demoTeam();
   t = T.addMember(t, { name: 'Dana Lee', role: 'Permits', loc: 'two', email: 'dana@x.com' });
   assert.deepEqual(t[t.length - 1], { key: 'dana', name: 'Dana Lee', role: 'Permits', loc: 'two', email: 'dana@x.com' });
-  assert.throws(() => T.addMember(t, { name: 'Dana Smith', role: 'Sales' }), /already on the team/);
+  assert.throws(() => T.addMember(t, { name: 'Dana Lee', role: 'Sales' }), /already on the team/);
+  assert.equal(T.addMember(t, { name: 'Dana Smith', role: 'Sales' }).at(-1).key, 'danas');
   assert.throws(() => T.addMember(t, { name: 'Bo', role: 'Boss' }), /pick a role/);
   assert.throws(() => T.removeMember(t, 'phil', 'phil'), /cannot remove yourself/);
   assert.equal(T.removeMember(t, 'dana', 'phil').length, t.length - 1);

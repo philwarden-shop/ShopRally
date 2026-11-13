@@ -163,3 +163,14 @@ test('purchasing: vended items get a linked card once, with owner and follow-up'
   assert.equal(syncPurchasing(r.records, items, [], '2026-11-13').added, 0);
   assert.equal(syncPurchasing([{ project: 'p1', name: 'desk logo' }], items, [], '2026-11-13').added, 0);
 });
+import { addMember, keyForName } from '../app/team.mjs';
+import { repRows } from '../app/perf.mjs';
+test('team: same first name gets its own key; people matched by full name', () => {
+  let t = addMember([], { name: 'Kristin Ames', role: 'Sales' });
+  t = addMember(t, { name: 'Kristin Wellbrock', role: 'Sales' });
+  assert.deepEqual(t.map((m) => m.key), ['kristin', 'kristinw']);
+  assert.throws(() => addMember(t, { name: 'kristin ames', role: 'Sales' }));
+  assert.equal(keyForName('Kristin Wellbrock', t), 'kristinw'); assert.equal(keyForName('Kristin Ames', t), 'kristin'); assert.equal(keyForName('Bob Smith', t), 'bob');
+  const rows = repRows({ projects: [{ salesperson: 'Kristin Ames', lane: 'progress' }, { salesperson: 'Kristin Wellbrock', lane: 'progress' }], tasksBy: { kristinw: [{ due: '2026-11-01', done: false }] }, today: '2026-11-13', team: t });
+  assert.deepEqual(rows.map((r) => [r.name, r.pastDue]), [['Kristin Ames', 0], ['Kristin Wellbrock', 1]]);
+});

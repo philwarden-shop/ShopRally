@@ -95,8 +95,11 @@ ${salesCard}<div class="p2col">${funnelCard}${lostCard}</div><p style="margin:0;
 
 // Team: "Slipping Through the Cracks" across everyone (past-due tasks, unanswered email, projects with no next step,
 // stuck items, quiet customers) and a By Salesperson table. tasksBy / mailBy are keyed by team member key.
-const firstKey = (name) => String(name || '').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+const firstKey0 = (name) => String(name || '').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+// Match a person by their team entry (full name) before falling back to first name (review fix).
+const keyIn = (team) => (name) => { const n = String(name || '').trim().toLowerCase(); const m = (team || []).find((x) => String(x.name || '').trim().toLowerCase() === n); return m ? m.key : firstKey0(name); };
 export function slipping({ projects = [], tasksBy = {}, mailBy = {}, stuck = [], warm = [], team = [], today }) {
+  const firstKey = keyIn(team);
   const nameOf = (k) => (team.find((t) => t.key === k) || {}).name || k;
   const out = [];
   const daysSince = (d) => Math.max(0, Math.round((Date.parse(today + 'T12:00:00Z') - Date.parse(String(d).slice(0, 10) + 'T12:00:00Z')) / 864e5));
@@ -109,6 +112,7 @@ export function slipping({ projects = [], tasksBy = {}, mailBy = {}, stuck = [],
   return out.sort((a, b) => (b.hot - a.hot) || b.days - a.days);
 }
 export function repRows({ projects = [], tasksBy = {}, mailBy = {}, stuck = [], today, goal = 0, team = [] }) {
+  const firstKey = keyIn(team);
   const won = (pr) => ['complete', 'built', 'progress'].includes(pr.lane);
   // Everyone with work on their list shows up, so the table adds up to the tiles above it (review fix).
   const sales = [...new Set(projects.map((pr) => pr.salesperson).filter(Boolean))];

@@ -6,6 +6,23 @@ import { sampleData } from './data.mjs';
 export const ROLES = ['Owner', 'Sales', 'Design', 'Production', 'Permits', 'Purchasing', 'Installer'];
 export const keyOf = (name) => String(name || '').trim().split(/\s+/)[0].toLowerCase().replace(/[^a-z0-9]/g, '');
 
+// Two people can share a first name (Kristin Ames, Kristin Wellbrock): the first keeps the plain first-name key, so
+// existing tasks-<firstname> lists keep working; later ones get first name + last-name letters.
+export function uniqueKey(name, list = []) {
+  const base = keyOf(name); if (!base) return '';
+  const taken = new Set(list.map((x) => x.key)); if (!taken.has(base)) return base;
+  const last = String(name).trim().split(/\s+/).slice(1).join('').toLowerCase().replace(/[^a-z0-9]/g, '');
+  for (let n = 1; n <= last.length; n++) { const k = base + last.slice(0, n); if (!taken.has(k)) return k; }
+  for (let n = 2; n < 100; n++) if (!taken.has(base + n)) return base + n;
+  return base + Date.now().toString(36);
+}
+// The key for a person named on a project or item: their team entry when the full name matches, else first name.
+export function keyForName(name, team = []) {
+  const n = String(name || '').trim().toLowerCase();
+  const m = team.find((x) => String(x.name || '').trim().toLowerCase() === n);
+  return m ? m.key : keyOf(name);
+}
+
 export function demoTeam() {
   if (!sampleData()) return [];
   const m = (name, role, loc = 'nky', email = '') => ({ key: keyOf(name), name, role, loc, email });
@@ -18,9 +35,9 @@ export function addMember(list, f) {
   if (!ROLES.includes(f.role)) throw new Error('pick a role');
   const email = String(f.email || '').trim();
   if (email && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(email)) throw new Error('that email address does not look right');
-  const key = keyOf(name);
+  if (list.some((x) => String(x.name || '').trim().toLowerCase() === name.toLowerCase())) throw new Error(`${name} is already on the team`);
+  const key = uniqueKey(name, list);
   if (!key) throw new Error('add their name');
-  if (list.some((x) => x.key === key)) throw new Error(`someone called ${name.split(' ')[0]} is already on the team`);
   return [...list, { key, name: name.slice(0, 60), role: f.role, loc: f.loc === 'two' ? 'two' : 'nky', email: email.slice(0, 120) }];
 }
 export function removeMember(list, key, me) {

@@ -60,7 +60,7 @@ import { withTemplateDefaults, mergeTemplateForm, templatesPage, templatePicker,
 import { diffPriceLists, findAffected, resolveAlert, priceTodos, priceBox, DEMO_SHARED } from './pricewatch.mjs';
 import { historyStep, historyPanel, newState, saveRecords } from './history.mjs';
 import { saveProjects } from './data.mjs';
-import { demoTeam, addMember, removeMember, teamAdminPage, isOwner, keyOf } from './team.mjs';
+import { demoTeam, addMember, removeMember, teamAdminPage, isOwner, keyOf, keyForName } from './team.mjs';
 import { projectTasksHtml, historyHtml, approveProject, approveHtml, markLost, lostHtml } from './projectx.mjs';
 import { groupTodos } from './activities.mjs';
 import { addFeedback, feedbackPage, feedbackInbox, setFeedbackStatus, safePath as fbSafePath } from './feedback.mjs';
@@ -228,7 +228,7 @@ const route = async (event) => {
           await putConfig('qr-counter', n);
           // Auto-assign (Admin › Sales › New Lead Assignment): round robin, counted per month.
           let owner = 'phil';
-          { const as = assignLead(await getConfig('admin-extra', null).catch(() => null), await getConfig('lead-assign', null).catch(() => null), today12); if (as) { out.project.salesperson = as.name; owner = keyOf(as.name) || 'phil'; out.task.assignee = owner; await putConfig('lead-assign', as.log); } }
+          { const as = assignLead(await getConfig('admin-extra', null).catch(() => null), await getConfig('lead-assign', null).catch(() => null), today12); if (as) { out.project.salesperson = as.name; owner = keyForName(as.name, await getConfig('team', demoTeam()).catch(() => demoTeam())) || 'phil'; out.task.assignee = owner; await putConfig('lead-assign', as.log); } }
           const xp = await getConfig('extra-projects', []).catch(() => []);
           if (xp.filter((p) => p.source === 'web-request').length >= 300) throw new Error('we could not take more online requests right now. Please call us');
           await putConfig('extra-projects', [...xp, out.project]);
@@ -1217,7 +1217,8 @@ const route = async (event) => {
       const allItems = await listItems();
       // Keep-warm check-ins (review fix): quiet customers owned by this person get one check-in task each, once.
       try {
-        const custsK = listCustomers(projects).filter((c) => keyOf(c.salesperson) === who && !c.projects.some((pp) => !['complete', 'lost'].includes(pp.lane)));
+        const teamK = await getConfig('team', demoTeam()).catch(() => demoTeam());
+        const custsK = listCustomers(projects).filter((c) => keyForName(c.salesperson, teamK) === who && !c.projects.some((pp) => !['complete', 'lost'].includes(pp.lane)));
         const profsK = await Promise.all(custsK.map((c) => getConfig(`customer-${c.id}`, {}).catch(() => ({}))));
         const have = new Set(tasks.map((t) => t.id)); const add = [];
         custsK.forEach((c, n) => { const w = warmth(c, profsK[n], today, adm); if (w.state === 'Active') return; const id = `kw-${c.id}-${String(w.last || 'none').slice(0, 7)}`; if (have.has(id) || add.length >= 10) return; add.push({ id, kind: 'call', title: `${w.state === 'Dormant' ? 'Win back' : 'Check in with'} ${c.name}${w.days != null ? ` · no contact in ${w.days} days` : ''}`, customer: c.name, projectId: '', due: today, done: false, label: w.state === 'Dormant' ? 'Win-back' : 'Keep warm' }); });
