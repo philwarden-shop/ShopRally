@@ -103,3 +103,12 @@ test('boards use the saved hold reasons', () => {
   const h2 = wb({ user, board: 'production', items: [it], view: 'list', columns: visibleColumns('production', []), log: [], flash: '' });
   assert.ok(h2.includes('hold|Need info: vendor'));
 });
+import { projectPage } from '../app/views.mjs';
+test('prospect project: hero actions, fewer tabs, scope card', () => {
+  const p = { id: 'demo-2', lane: 'prospect', name: 'W', company: 'Tri-State Logistics', contact: 'M', total: 100, due: '2027-02-04' };
+  const h = projectPage({ user, mode: 'demo', p, standing: '', tab: 'scope', extras: { scope: { text: '<b>x</b>', items: 3, meas: 2, visits: 2, needs: 1 } } });
+  for (const t of ['Start Site Visit', 'Move to Estimate', 'Mark Lost', 'Project Scope', 'More tabs appear as the job grows', 'action="/projects/demo-2/scope"']) assert.ok(h.includes(t), t);
+  assert.ok(!h.includes('&tab=products') && !h.includes('<b>x</b>'));
+  const h2 = projectPage({ user, mode: 'demo', p: { ...p, lane: 'progress' }, standing: '', tab: '' });
+  assert.ok(h2.includes('&tab=products') && !h2.includes('Start Site Visit'));
+});

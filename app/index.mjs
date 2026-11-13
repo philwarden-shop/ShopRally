@@ -767,6 +767,16 @@ const route = async (event) => {
       const res = qs ? allP.filter((x) => `${x.company} ${x.name}`.toLowerCase().includes(qs)).slice(0, 20).map((x) => ({ id: x.id, company: x.company, name: x.name, where: x.status || '' })) : [];
       return html(svStartPage({ user, q: String(q.q || '').slice(0, 80), results: res, today: tj }));
     }
+    // Project scope (mockup ProspectRecord · Scope tab): what the customer wants, written like you'd tell a coworker.
+    const scm = path.match(/^\/projects\/([\w-]+)\/scope$/);
+    if (scm && method === 'POST') {
+      if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
+      const p = await getProject(scm[1], 'demo');
+      if (!p) return redirect('/projects?mode=demo');
+      const text = String(formBody(event).scope || '').replace(/\r/g, '').slice(0, 6000);
+      await putConfig(`scope-${p.id}`, { text, at: new Date().toISOString(), by: user.name || user.email });
+      return redirect(`/projects/${p.id}?mode=demo&tab=scope&flash=${encodeURIComponent('Scope saved.')}#pscope`);
+    }
     const svm = path.match(/^\/projects\/([\w-]+)\/visit$/);
     if (svm) {
       const p = await getProject(svm[1], 'demo');
@@ -1137,6 +1147,7 @@ const route = async (event) => {
         const ids0 = new Set(its0.map((i) => i.id)); const nm0 = Object.fromEntries(its0.map((i) => [i.id, i.name]));
         const hist0 = (await recentLog(200).catch(() => [])).filter((l) => ids0.has(l.itemId || l.item || l.id)).map((l) => ({ ...l, itemName: nm0[l.itemId || l.item || l.id] }));
         standing += historyHtml(hist0, (id) => stepById(id)?.name || id || '');
+        { const sc0 = await getConfig(`scope-${p.id}`, null).catch(() => null); let v0 = await getConfig(`visit-${p.id}`, null).catch(() => null); v0 = v0 || seedVisit(p, sampleData()); extrasP.scope = { text: (sc0 && sc0.text) || '', at: sc0 && sc0.at, by: sc0 && sc0.by, items: (v0.items || []).filter((x) => !x.dropped).length, meas: (v0.items || []).reduce((a, x) => a + (x.meas || []).length, 0), visits: v0.visits || 0, needs: (v0.needs || []).length }; }
         extrasP.side = { dest: dest0, po: po0, email: (cu0.contact || {}).email || '', phone: (cu0.company || {}).phone || (cu0.contact || {}).phone || '', expected: expectedFor(p, its0, today0) };
         standing += poPanel(p.id, po0 || {}, po0 && po0.poAmount ? poCheck({ poAmount: po0.poAmount, total: p.total, tax: p.tax || 0, taxExempt: !!(co0.isTaxExempt ?? co0.IsTaxExempt ?? co0.taxExempt) }) : null);
       }
