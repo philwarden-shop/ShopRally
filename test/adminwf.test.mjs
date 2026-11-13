@@ -155,3 +155,11 @@ test('order page: shop name/phone from settings, signer and version on approval'
   assert.ok(h.includes('FASTSIGNS of Somewhere') && h.includes('(555) 111-2222') && !h.includes('555-0100'));
   assert.ok(h.includes('name="signer"') && h.includes('value="Jo Lee"') && h.includes('name="version"'));
 });
+import { syncPurchasing } from '../app/simpleboards.mjs';
+test('purchasing: vended items get a linked card once, with owner and follow-up', () => {
+  const items = [{ id: 'i2', projectId: 'p1', name: 'Desk logo', step: 'vended' }, { id: 'i3', projectId: 'p1', name: 'Wall', step: 'wip' }];
+  let r = syncPurchasing([], items, [{ id: 'p1', company: 'Acme' }], '2026-11-13');
+  assert.equal(r.added, 1); assert.deepEqual([r.records[0].item, r.records[0].owner, r.records[0].follow, r.records[0].company], ['i2', 'Purchasing', '2026-11-14', 'Acme']);
+  assert.equal(syncPurchasing(r.records, items, [], '2026-11-13').added, 0);
+  assert.equal(syncPurchasing([{ project: 'p1', name: 'desk logo' }], items, [], '2026-11-13').added, 0);
+});

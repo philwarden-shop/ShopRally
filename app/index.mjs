@@ -19,7 +19,7 @@ import { extrasHtml, addComment, decidePrice, demoPriceChange, DEFAULT_PRICE_THR
 import { settingsPage, mergeSettings , withAdminNav } from './settings.mjs';
 import { mergeExtra, assignLead } from './adminx.mjs';
 import { parseChecklistRows } from './adminwf.mjs';
-import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord } from './simpleboards.mjs';
+import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord, syncPurchasing } from './simpleboards.mjs';
 import { roleGroups, roleActivitiesPage } from './roleview.mjs';
 import { applyQuoteCheck } from './quotecheck.mjs';
 import { readPrefs, prefChange } from './account.mjs';
@@ -314,6 +314,7 @@ const route = async (event) => {
       const board = sbm[1];
       let records = demoRecords(board);
       try { records = await getConfig(`board-${board}`, records); } catch { /* demo */ }
+      if (board === 'purchasing' && method === 'GET' && !sbm[2]) { const sy = syncPurchasing(records, await listItems(), (await listProjects('demo')).projects, new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })); if (sy.added) { records = sy.records; await putConfig(`board-${board}`, records).catch(() => {}); } }
       if (board === 'purchasing' && sbm[2] && sbm[3] === 'quote' && method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
         const today11 = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
@@ -330,6 +331,8 @@ const route = async (event) => {
         try {
           records = sbm[3] === 'move' ? moveRecord(records, sbm[2], f.to, board) : sbm[3] === 'fee' && board === 'permits' ? addFee(records, sbm[2], f) : updateFields(records, sbm[2], f, board);
           await putConfig(`board-${board}`, records);
+          // Received on Purchasing moves the linked vended item on to Quality control.
+          if (board === 'purchasing' && sbm[3] === 'move' && f.to === 'received') { const rc = records.find((x) => x.id === sbm[2]); if (rc && rc.item) { const itR = (await listItems()).find((i) => i.id === rc.item); if (itR && itR.step === 'vended') { await moveItem(itR.id, 'qc', { by: user.email, note: 'Material received (Purchasing board).', reason: 'Material received' }); return redirect(`/boards/${board}?flash=${encodeURIComponent('Received. ' + itR.name + ' moved to Quality control.')}`); } } }
           return redirect(`/boards/${board}?flash=${encodeURIComponent(sbm[3] === 'move' ? 'Moved.' : 'Saved.')}`);
         } catch (e) { return redirect(`/boards/${board}?flash=${encodeURIComponent('Not changed: ' + e.message)}`); }
       }

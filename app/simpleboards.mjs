@@ -113,7 +113,7 @@ export function simpleBoardPage({ user, board, records, view = 'board', flash = 
   const cl = (r) => (checklists ? cardChecklist({ id: r.id, step: `${board}-${r.col}` }, checklists.saved, (checklists.checks || {})[`b:${board}:${r.id}`], `/boards/${board}`, `/boards/${board}/${r.id}/check`) : '');
   const def = BOARDS[board];
   const v = view === 'list' ? 'list' : 'board';
-  const meta = (r) => esc([r.company, r.city || r.vendor, r.appNo ? `App ${r.appNo}` : '', r.permitNo ? `Permit ${r.permitNo}` : '', r.eta ? `ETA ${niceD(r.eta)}` : ''].filter(Boolean).join(' · '));
+  const meta = (r) => esc([r.company, r.city || r.vendor, r.appNo ? `App ${r.appNo}` : '', r.permitNo ? `Permit ${r.permitNo}` : '', r.eta ? `ETA ${niceD(r.eta)}` : '', r.owner ? r.owner : '', r.follow && r.col !== 'received' && r.col !== 'approved' ? `Follow up ${niceD(r.follow)}` : ''].filter(Boolean).join(' · '));
   let main;
   if (v === 'board') {
     main = `<div class="board" style="grid-template-columns:repeat(${def.cols.length},minmax(220px,1fr))">${def.cols.map(([k, l]) => {
@@ -144,3 +144,19 @@ export const BOARD_JS = `(() => {
       f.action = location.pathname + '/' + encodeURIComponent(cid) + '/move'; f.elements.to.value = l.dataset.col; f.submit(); });
   });
 })();`;
+
+// Review fix (Nov 13): every vended product gets a Purchasing card automatically, linked to the item, with an owner
+// and a follow-up date. Existing cards are left alone (matched by item, or by project + name for hand-made ones).
+export function syncPurchasing(records = [], items = [], projects = [], today) {
+  const add = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const out = [...records]; let added = 0;
+  for (const it of items) {
+    if (it.step !== 'vended') continue;
+    if (out.some((r) => r.item === it.id || (r.project === it.projectId && String(r.name).toLowerCase() === String(it.name).toLowerCase()))) continue;
+    const pr = projects.find((p) => p.id === it.projectId) || {};
+    out.push({ id: `auto-${it.id}`, name: it.name, project: it.projectId, company: pr.company || it.customer || '', vendor: '', col: 'quote', item: it.id, owner: 'Purchasing', follow: add(today, 1), auto: true });
+    added++;
+  }
+  return { records: out, added };
+}
+

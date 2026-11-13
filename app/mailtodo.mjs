@@ -31,6 +31,11 @@ export function saveDraft(mail, f, { from, at, id = 'd' + Date.now().toString(36
 }
 export const dropDraftFor = (mail, replyTo) => (replyTo ? mail.filter((m) => !(m.folder === 'draft' && m.replyTo === replyTo)) : mail);
 
+// To Do shows email that needs a person (review fix): obvious junk from unknown senders and automatic shipping
+// notices (labels, tracking) stay in the inbox but don't land on To Do.
+export const isJunk = (m) => !m.customer && /\b(you (have )?won|winner|free .{0,30}!{2,}|claim your|congratulations!|act now|limited time offer)\b/i.test(`${m.subject || ''} ${m.text || ''}`);
+export const isNotice = (m) => /^(label purchased|shipment|tracking|your package|delivered:)/i.test(String(m.subject || '').trim()) || /(xps|noreply|no-reply|donotreply|ups\.com|fedex\.com)/i.test(String(m.from || ''));
+const needsPerson = (m) => m.folder === 'inbox' && !isJunk(m) && !isNotice(m);
 function waiting(mail) {
   const sent = mail.filter((m) => m.folder === 'sent');
   return sent.filter((s) => !mail.some((m) => m !== s && m.folder !== 'sent' && m.folder !== 'draft' && threadKey(m) === threadKey({ ...s, customer: s.customer || s.to }) && m.at > s.at));
@@ -41,7 +46,7 @@ const grouped = (list) => {
   return [...map.values()];
 };
 export function emailCounts(mail) {
-  return { need: grouped(mail.filter((m) => m.folder === 'inbox')).length, waiting: waiting(mail).length, snoozed: grouped(mail.filter((m) => m.folder === 'snoozed')).length, draft: mail.filter((m) => m.folder === 'draft').length, scheduled: mail.filter((m) => m.folder === 'scheduled').length };
+  return { need: grouped(mail.filter(needsPerson)).length, waiting: waiting(mail).length, snoozed: grouped(mail.filter((m) => m.folder === 'snoozed')).length, draft: mail.filter((m) => m.folder === 'draft').length, scheduled: mail.filter((m) => m.folder === 'scheduled').length };
 }
 export function emailTodos(mail, view = 'need') {
   const mk = (g, extra = {}) => { const last = g[g.length - 1]; return { id: `mail-${last.id}`, mailId: last.id, kind: 'email', title: last.subject, customer: last.customer || last.name || last.from || last.to, projectId: last.projectId || '', due: String(last.at).slice(0, 10), done: false, mail: true, from: last.from, name: last.name || '', snippet: String(last.text || last.snippet || last.body || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 240), count: g.length, matched: !!last.customer, view, ...extra }; };
@@ -49,7 +54,7 @@ export function emailTodos(mail, view = 'need') {
   if (view === 'snoozed') return grouped(mail.filter((m) => m.folder === 'snoozed')).map((g) => mk(g, { until: g[g.length - 1].snoozeUntil }));
   if (view === 'scheduled') return mail.filter((m) => m.folder === 'scheduled').sort((a, b) => String(a.sendAt).localeCompare(String(b.sendAt))).map((d) => mk([d], { title: d.subject || '(no subject)', customer: d.customer || d.to, until: d.sendAt }));
   if (view === 'draft') return mail.filter((m) => m.folder === 'draft').map((d) => mk([d], { title: d.subject || '(no subject)', customer: d.customer || d.to }));
-  return grouped(mail.filter((m) => m.folder === 'inbox')).map((g) => mk(g));
+  return grouped(mail.filter(needsPerson)).map((g) => mk(g));
 }
 export function emailFilterBar(counts, active) {
   const V = [['need', 'Need Reply'], ['waiting', 'Waiting for Reply'], ['snoozed', 'Snoozed'], ['draft', 'Draft'], ...(Number(counts.scheduled || 0) ? [['scheduled', 'Scheduled']] : [])];
