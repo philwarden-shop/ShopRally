@@ -1120,7 +1120,9 @@ const route = async (event) => {
         const bar0 = nx
           ? `<div class="nstep"><b>Next step</b><span>${esc(nx.title)}</span><span class="m">· ${dueTxt} · on your Activities</span><form method="post" action="/activities/tasks/${esc(nx.id)}/done" style="margin:0"><input type="hidden" name="back" value="/projects/${esc(p.id)}?mode=demo"><button class="go" title="Marks it done on your Activities too">Do It →</button></form></div>`
           : `<div class="nstep" style="background:#fdf3dc;color:#7a4e00"><b>No next step</b><span>Every open job needs one.</span><a class="go" href="/activities?new=1&project=${esc(p.id)}">Add Next Step →</a></div>`;
-        standing = `<style>.nstep{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#3d4658;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;align-self:flex-start}.nstep b{color:var(--mute)}.nstep .m{color:var(--mute)}.nstep .go{font:inherit;font-size:12px;font-weight:700;color:#fff;background:#a8343f;border:0;border-radius:6px;padding:0 10px;min-height:28px;cursor:pointer;display:inline-flex;align-items:center}.nstep a.go:hover{text-decoration:none}</style>` + bar0 + standing;
+        standing = `<style>.nstep{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#3d4658;background:#fff;border:1px solid var(--line);border-radius:8px;padding:6px 8px 6px 12px;align-self:flex-start}.nstep b{color:var(--mute)}.nstep .m{color:var(--mute)}.nstep .go{font:inherit;font-size:12px;font-weight:700;color:#fff;background:#a8343f;border:0;border-radius:6px;padding:0 10px;min-height:28px;cursor:pointer;display:inline-flex;align-items:center}.nstep a.go:hover{text-decoration:none}</style>` + standing;
+        // One next-step control (UX review): it lives in the header; the separate banner is gone.
+        p.nextStep = nx ? `${nx.title} · ${dueTxt}` : ''; p.nextMissing = !nx; void bar0;
       }
       if (mode === 'demo') {
         let po0 = null; try { po0 = await getConfig(`po-${p.id}`, null); } catch { /* none */ }

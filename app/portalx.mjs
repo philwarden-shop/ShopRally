@@ -89,7 +89,7 @@ export function readyForecast(items, { steps, targets, today, due }) {
 export function forecastHtml(f) {
   const nice = (d) => new Date(d + 'T12:00:00Z').toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'UTC' });
   if (f.state === 'ready') return `<section style="background:#e6f2ec;border-radius:12px;padding:14px 16px"><span style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#1f6a43">READY</span><div style="font-size:18px;font-weight:700">Your order is ready</div></section>`;
-  return `<section style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:14px 16px"><span style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#1d4f91">READY</span><div style="font-size:18px;font-weight:700">Most likely ${esc(nice(f.likely))}</div>${f.due ? `<div style="font-size:13px;color:#5a6478">No later than ${esc(nice(f.due))}.</div>` : ''}${f.waitingOnYou ? '<div style="font-size:13px;color:#5c4300;margin-top:4px">This date depends on your proof approval below.</div>' : ''}</section>`;
+  return `<section style="background:#fff;border:1px solid #e3e7ee;border-radius:12px;padding:14px 16px"><span style="font-size:11px;font-weight:700;letter-spacing:.5px;color:#1d4f91">READY</span><div style="font-size:18px;font-weight:700">Most likely ${esc(nice(f.likely))}</div>${f.due ? `<div style="font-size:13px;color:#5a6478">No later than ${esc(nice(f.due))}.</div>` : ''}${f.waitingOnYou ? '<div style="font-size:13px;color:#5c4300;margin-top:4px">This date depends on your proof approval.</div>' : ''}</section>`;
 }
 
 // Customer approves the estimate online. It moves to In production in SalesMax with "deposit due"; the salesperson gets a task.

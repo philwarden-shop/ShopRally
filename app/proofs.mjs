@@ -138,7 +138,7 @@ export function portalPage({ project, items, token, flash, error, extras = '', s
     </section>`;
   };
   const status = (it) => {
-    const label = { files: 'Approved, in production prep', indesign: 'Our designers are working on it', queue: 'Waiting for a designer', salesrev: 'Being checked before we send it', proofqc: 'Being checked before we send it' }[it.step] || stepById(it.step)?.name || it.step;
+    const label = { prep: 'Getting ready for design', files: 'Approved, in production prep', indesign: 'Our designers are working on it', queue: 'Waiting for a designer', salesrev: 'Being checked before we send it', proofqc: 'Being checked before we send it', wip: 'Being made', vended: 'Being made by our production partner', qc: 'Final quality check', built: 'Ready', hold: 'Paused, we will be in touch', done: 'Done' }[it.step] || 'In progress';
     return `<li style="padding:10px 0;border-top:1px solid #eef1f5;display:flex;justify-content:space-between;gap:10px"><span>${esc(it.name)}</span><span style="color:#5a6478;text-align:right">${esc(label)}</span></li>`;
   };
   // Order progress like the mockup: Estimate → Proofs → Production → Ready → Complete.
