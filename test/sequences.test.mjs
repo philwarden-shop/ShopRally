@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 const Q = await import('../app/sequences.mjs');
 test('sequences: three prebuilt, off by default; admins edit steps, add, remove, reset, toggle; due steps by day', () => {
   const d = Q.withDefaults(null);
-  assert.deepEqual(d.map((s) => [s.id, s.on]), [['welcome', false], ['nextsteps', false], ['payment', false]]);
+  assert.deepEqual(d.slice(0, 3).map((s) => [s.id, s.on]), [['welcome', false], ['nextsteps', false], ['payment', false]]);
+  assert.equal(d.length, 14); assert.ok(d.slice(3).every((s) => s.on === false && s.draft && s.steps.length));
   let s = Q.mergeSequenceForm(d, 'payment', { do: 'toggle', on: '1' });
   assert.equal(s[2].on, true);
   s = Q.mergeSequenceForm(s, 'payment', { day0: '2', kind0: 'email', subject0: 'Deposit please', body0: 'x', day1: '4', kind1: 'task', subject1: 'Call them', remove1: 'on', add: 'task' });
