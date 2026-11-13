@@ -18,6 +18,7 @@ import { listCustomers, customersPage, customerPage, mergeProfile, logActivity, 
 import { extrasHtml, addComment, decidePrice, demoPriceChange, DEFAULT_PRICE_THRESHOLD, customerPo, poFormHtml, readyForecast, forecastHtml, approveEstimateOnline, estimateApprovalHtml } from './portalx.mjs';
 import { settingsPage, mergeSettings , withAdminNav } from './settings.mjs';
 import { mergeExtra } from './adminx.mjs';
+import { parseChecklistRows } from './adminwf.mjs';
 import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord } from './simpleboards.mjs';
 import { roleGroups, roleActivitiesPage } from './roleview.mjs';
 import { applyQuoteCheck } from './quotecheck.mjs';
@@ -540,7 +541,13 @@ const route = async (event) => {
     if (path === '/admin/checklists') {
       if (method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
-        await putConfig('checklists', parseChecklistForm(formBody(event), await getConfig('custom-stages', []).catch(() => [])));
+        const fCl = formBody(event); const customCl = await getConfig('custom-stages', []).catch(() => []);
+        if (fCl.rows === '1') {
+          await putConfig('checklists', parseChecklistRows(fCl, await getConfig('checklists', null).catch(() => null), customCl));
+          const bp = safeBack(q.back, '/admin?tab=work');
+          return redirect(bp + (bp.includes('?') ? '&' : '?') + 'flash=' + encodeURIComponent(fCl.del ? 'Checklist item removed.' : 'Checklists saved. Cards show them right away.') + '#stagecl-h');
+        }
+        await putConfig('checklists', parseChecklistForm(fCl, customCl));
         return redirect('/admin/checklists?flash=' + encodeURIComponent('Checklists saved. Cards show them right away.'));
       }
       return html(checklistsPage({ page: (o) => simplePage0(o), user, saved: await getConfig('checklists', null).catch(() => null), custom: await getConfig('custom-stages', []).catch(() => []), flash: q.flash || '' }));
@@ -690,13 +697,16 @@ const route = async (event) => {
         } catch (e) { return html(settingsPage({ user, settings, tab, error: 'Not saved: ' + e.message.charAt(0).toUpperCase() + e.message.slice(1) + '.' }), 400); }
       }
       const extraA = await getConfig('admin-extra', null).catch(() => null);
-      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA }));
+      const wfX = tab === 'work' ? { checklists: await getConfig('checklists', null).catch(() => null), custom: await getConfig('custom-stages', []).catch(() => []), cl: q.cl || 'sales' } : {};
+      const listsX = tab === 'sales' ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
+      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, ...wfX }));
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
       const bkX = q.back ? safeBack(q.back, '/admin?tab=company') : '/admin?tab=company';
-      try { const cur = await getConfig('admin-extra', null).catch(() => null); const r = mergeExtra(cur, formBody(event)); await putConfig('admin-extra', r.x); return redirect(bkX + '&flash=' + encodeURIComponent(r.msg)); }
-      catch (e) { return redirect(bkX + '&flash=' + encodeURIComponent('Not saved: ' + e.message + '.')); }
+      const fX = formBody(event); const goX = /^[\w-]{1,40}$/.test(fX.go || '') ? '#' + fX.go : '';
+      try { const cur = await getConfig('admin-extra', null).catch(() => null); const r = mergeExtra(cur, fX); await putConfig('admin-extra', r.x); return redirect(bkX + '&flash=' + encodeURIComponent(r.msg) + goX); }
+      catch (e) { return redirect(bkX + '&flash=' + encodeURIComponent('Not saved: ' + e.message + '.') + goX); }
     }
     if (path === '/admin/modifier-prices') {
       let list = [];

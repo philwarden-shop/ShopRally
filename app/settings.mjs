@@ -1,7 +1,8 @@
 // Admin settings: 6 tabs, typed fields with defaults, status strip, Advanced sections. Stored as one config doc.
 import { page, esc, infoTip } from './views.mjs';
 import { companyExtras, salesExtras } from './adminx.mjs';
-import { rulesSections } from './salesrules.mjs';
+import { rulesSections, LIST_DEFAULTS, IMPORT_KINDS } from './salesrules.mjs';
+import { workflowExtras } from './adminwf.mjs';
 
 export const TABS = [
   ['company', 'Company'], ['sales', 'Sales'], ['pricing', 'Pricing'], ['work', 'Work'], ['orders', 'Customer Page & Payments'], ['cb', 'Connections'],
@@ -168,7 +169,7 @@ function frow([k, label, type, , help, , extra], v) {
   else input = `<input id="${id}" name="${k}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}" ${type === 'number' && extra ? `min="${extra[0]}" max="${extra[1]}"` : ''} style="font:inherit;font-size:13px;min-height:36px;border:1px solid #d5dbe5;border-radius:8px;padding:0 10px;box-sizing:border-box;width:${type === 'number' ? '120px' : '100%'}">`;
   return `<div style="display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:12px;align-items:${type === 'textarea' ? 'start' : 'center'};padding:10px 0;border-bottom:1px solid #eef1f5;font-size:13px"><span><label for="${id}" style="font-weight:600">${esc(label)}</label>${help ? `<span style="display:block;font-size:12px;color:#5a6478;line-height:1.4;margin-top:2px">${esc(help)}</span>` : ''}</span><span>${input}</span></div>`;
 }
-export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null }) {
+export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales' }) {
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
   const list = FIELDS[t];
@@ -189,8 +190,15 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const sample = t === 'company' ? adminCard({ title: 'Sample Data', desc: 'Puts every sample task, board, customer note and approval back the way it started. Admin settings stay.', body: '<form method="post" action="/admin/reset-demo" style="padding:12px 20px 16px"><button class="btn">Reset Sample Data</button></form>' }) : '';
   const rs = (t === 'sales' || t === 'work') ? rulesSections(s, `/admin?tab=${t}`) : null;
   const sx = t === 'sales' ? salesExtras(extra, { tip: infoTip }) : null;
-  const tabExtras = t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + sx.claim : t === 'work' ? rs.stages + rs.reply + rs.hours : '';
+  const wx = t === 'work' ? workflowExtras(extra, { checklists, custom, clBoard: cl }) : null;
+  const L = { ...LIST_DEFAULTS, ...(lists || {}) };
+  const nv = (a) => `${(a || []).length} value${(a || []).length === 1 ? '' : 's'}`;
+  const more = (a, n = 4) => (a || []).slice(0, n).join(', ') + ((a || []).length > n ? ` and ${(a || []).length - n} more` : '');
+  const custLists = t === 'sales' ? adminCard({ title: 'Customer lists', desc: 'The choices used on customer records. Source replaces CoreBridge’s Origination type.', action: `<a href="/admin/lists" style="display:inline-flex;align-items:center;background:#fff;color:#1d4f91;border:1px solid #d5dbe5;border-radius:8px;padding:0 12px;min-height:36px;font-size:13px;font-weight:600;text-decoration:none">Edit Lists</a>`, body: adminRows([{ a: 'Source', b: more(L.source, 7), c: nv(L.source) }, { a: 'Industry', b: more(L.industry), c: nv(L.industry) }, { a: 'Customer type', b: more(L.ctype, 5), c: nv(L.ctype) }, { a: 'Tax-exempt reasons', b: more(L.taxExempt), c: nv(L.taxExempt) }, { a: 'Mark inactive after', b: `No orders or estimates for ${L.inactiveMonths} months, no open orders, no credit`, c: `${L.inactiveMonths} months`, tone: 'blue' }]) }) : '';
+  const imp = t === 'sales' ? adminCard({ title: 'Import customers', desc: 'Bring in customers, extra locations and extra contacts from a spreadsheet. Used when a new location joins SalesMax.', action: `<a href="/admin/lists#import" style="display:inline-flex;align-items:center;background:#fff;color:#1d4f91;border:1px solid #d5dbe5;border-radius:8px;padding:0 12px;min-height:36px;font-size:13px;font-weight:600;text-decoration:none">Start an Import</a>`, body: adminRows(Object.values(IMPORT_KINDS).map(([a, b]) => ({ a, b, c: 'CSV' }))) }) : '';
+  const tabExtras = t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + custLists + imp : t === 'work' ? wx.boards + wx.rules + rs.stages + rs.reply + rs.hours + wx.cl + wx.permits + wx.tags + wx.css : '';
+  const tail = (t === 'sales' || t === 'work') ? `<details style="background:#ffffff;border:1px solid #e3e7ee;border-radius:12px;padding:12px 20px"><summary style="cursor:pointer;font-size:14px;font-weight:700;min-height:32px;display:flex;align-items:center;gap:6px">Advanced <span style="font-weight:400;font-size:13px;color:#5a6478">· rarely changed: ${t === 'sales' ? 'Prospect Claim Rules, Sales Settings, more pages' : 'Proof rounds, quality control, more pages'}</span></summary><div style="display:flex;flex-direction:column;gap:16px;padding:12px 0 4px">${t === 'sales' ? sx.claim.replace(/^<details[^>]*>/, '<div>').replace(/<summary[\s\S]*?<\/summary>/, '').replace(/<\/details>$/, '</div>') : ''}${settingsCard}${linkCard}</div></details>` : '';
   const msg = error ? `<div class="note" role="alert" style="margin:0;background:#fbeaec;color:#8f2a34">${esc(error)}</div>` : '';
-  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + tabExtras + settingsCard + linkCard + sample });
+  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + tabExtras + (tail || settingsCard + linkCard) + sample });
   return page({ title: 'Admin Settings', user, tab: '', body });
 }
