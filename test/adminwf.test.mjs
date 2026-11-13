@@ -64,3 +64,33 @@ test('admin sections fold into closed bars with Expand All', () => {
   const h = settingsPage({ user, settings: {}, tab: 'work' });
   assert.ok(h.includes('<b>Project Stage Rules</b>') && h.includes('<b>Tags</b>'));
 });
+import { mergeExtra as mx2 } from '../app/adminx.mjs';
+import { decideProof } from '../app/proofs.mjs';
+test('pricing, order page and connections tabs show the mockup sections', () => {
+  const p = settingsPage({ user, settings: {}, tab: 'pricing' });
+  for (const t of ['Machines', 'Roll to Roll', 'Modifier Price List', 'Price List and Pricing Engine']) assert.ok(p.includes(t), t);
+  const o = settingsPage({ user, settings: {}, tab: 'orders', apps: { cardpointe: false } });
+  for (const t of ['Customer Order Page and Payments', 'Payment Processor', 'Needs keys', 'Notes Customers See', 'Approval Checklist', 'Branding', 'Customer PO check', 'Customer emails', 'Estimate and invoice documents', 'Credit rules', 'Ordering lists and defaults', '/admin/preview-order-page']) assert.ok(o.includes(t), t);
+  const c = settingsPage({ user, settings: {}, tab: 'cb', apps: { clarity: true } });
+  for (const t of ['Connected Apps', 'Job folders (Google Drive)', 'Transition Period', 'How SalesMax and CoreBridge Work Together', 'Changes to CoreBridge', 'Writes to CoreBridge are off']) assert.ok(c.includes(t), t);
+  assert.ok(/Clarity Voice[\s\S]{0,300}Keys saved/.test(c));
+});
+test('order page approval checklist edits and is enforced', () => {
+  let { x } = mx2(null, { do: 'approval', ac_0: 'Qty', ac_new: 'Bleed', del: '1', all: 'on', policy: 'P' });
+  assert.equal(x.approvalChecks[0], 'Qty'); assert.ok(!x.approvalChecks.includes('Sizes')); assert.equal(x.approvalChecks.at(-1), 'Bleed');
+  const it = { step: 'proofwait' };
+  assert.throws(() => decideProof(it, 'approve', { checks: ['Qty'], list: ['Qty', 'Bleed'], mustAll: true }));
+  assert.equal(decideProof(it, 'approve', { checks: ['Qty'], list: ['Qty', 'Bleed'], mustAll: false }).to, 'files');
+});
+test('credit, PO check, machines, folders, transition and CoreBridge rules save', () => {
+  let { x } = mx2(null, { do: 'credit', grace: '15', inDefault: 'Block', wouldExceed: 'Nope', over: 'Warn', noTerms: 'COD' });
+  assert.deepEqual(x.credit, { grace: 15, inDefault: 'Block', wouldExceed: 'Warn', over: 'Warn', noTerms: 'COD' });
+  assert.throws(() => mx2(x, { do: 'credit', grace: '-1' }));
+  ({ x } = mx2(x, { do: 'pocheck', po_amount: 'on' })); assert.equal(x.poCheck.amount, true); assert.equal(x.poCheck.supplier, false);
+  ({ x } = mx2(x, { do: 'machine', name: 'Engraver', rate: '40' })); assert.equal(x.machines.at(-1).rate, 40);
+  assert.throws(() => mx2(x, { do: 'machine', name: 'engraver', rate: '40' }));
+  ({ x } = mx2(x, { do: 'jobfolders', jf_root: 'Drive › Jobs' })); assert.equal(x.jobFolders.root, 'Drive › Jobs');
+  ({ x } = mx2(x, { do: 'transadd', name: 'Kristin' })); assert.equal(x.transition[0].name, 'Kristin');
+  ({ x } = mx2(x, { do: 'transdel', i: '0' })); assert.equal(x.transition.length, 0);
+  ({ x } = mx2(x, { do: 'cbchanges', cb_confirm: 'on' })); assert.deepEqual(x.cbChanges, { confirm: true, dueDates: false, dragComplete: false });
+});

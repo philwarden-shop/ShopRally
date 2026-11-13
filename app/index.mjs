@@ -38,7 +38,7 @@ import { demoMail, move, markSpam, notSpam, setOutOfOffice, emailPage, coveringT
 import { sendEmail, mailRows, composer, mailForCustomer, mailTasks, oooForm, signatureForm, sanitizeHtml, EDITOR_JS } from './mailui.mjs';
 import { emailTodos, emailCounts, emailFilterBar, wakeSnoozed, snooze, archiveThread, saveDraft, dropDraftFor , unsend, unschedule, undoBar } from './mailtodo.mjs';
 import { xpsSearch, matchShipments, newLabels, packagesFromForm, buildPutOrder, xpsPutOrder, xpsTrigger } from './xps.mjs';
-import { APPS, readApp, saveApp, connectionsPage } from './vault.mjs';
+import { APPS, readApp, saveApp, connectionsPage, appStatus } from './vault.mjs';
 import { addressesFor, addProfileAddress } from './shipping.mjs';
 import { sampleData } from './data.mjs';
 import { setDestination, destinationPanel, recordLabel, confirmInCoreBridge, completeBlocked, shippingPanel, invoicePage, addressBlock, SHIP_RULES_DEFAULT, mergeShipRules, shipRulesPanel } from './shipping.mjs';
@@ -152,7 +152,8 @@ const route = async (event) => {
         if (!it) return redirect(`${self}?error=${encodeURIComponent('We could not find that item.')}`);
         const f = formBody(event);
         try {
-          const d = decideProof(it, f.decision, { checks: APPROVAL_CHECKS.map((_, n) => f[`check${n}`]).filter(Boolean), notes: f.notes });
+          const axP = await getConfig('admin-extra', null).catch(() => null); const aList = (axP && Array.isArray(axP.approvalChecks) && axP.approvalChecks.length) ? axP.approvalChecks : APPROVAL_CHECKS;
+          const d = decideProof(it, f.decision, { checks: aList.map((_, n) => f[`check${n}`]).filter(Boolean), notes: f.notes, list: aList, mustAll: axP ? axP.approvalAll !== false : true });
           await moveItem(it.id, d.to, { by: `customer:${project.contact}`, note: d.note, reason: d.note });
           const msg = d.to === 'files' ? `Thank you! "${it.name}" is approved and going to production.` : `Thanks, we got your changes for "${it.name}". We will send a new proof soon.`;
           return redirect(`${self}?flash=${encodeURIComponent(msg)}`);
@@ -197,7 +198,9 @@ const route = async (event) => {
       let admP = {}; try { admP = await getConfig('admin-settings', {}); } catch { /* defaults */ }
       const extras = estimateApprovalHtml(pm[1], project, { depositPct: admP.depositPct ?? 50, notes: admP.estimateNotes ?? 'Prices are good for 30 days. A 50% deposit starts production.' });
       const side = forecastHtml((() => { const v = readyForecast(mine, { steps: STEPS, targets: STEP_TARGET_DAYS, today: todayF, due: null }); const x = expectedFor(project, mine, todayF); return v.state === 'ready' ? v : { ...v, likely: x.customerDate || v.likely, due: project.due }; })()) + poFormHtml(pm[1], poC) + payPanel(project.balance ?? Math.round((Number(project.total) || 0) * 50) / 100, cardFee) + extrasHtml({ token: pm[1], comments: px.comments || [], priceChange: px.priceChange, threshold, emailed: !!px.emailed });
-      return html(portalPage({ project, items: mine, token: pm[1], flash: q.flash, error: q.error, extras, side, proofLinks }));
+      const axV = await getConfig('admin-extra', null).catch(() => null);
+      const approval = axV && Array.isArray(axV.approvalChecks) && axV.approvalChecks.length ? { list: axV.approvalChecks, policy: axV.proofPolicy || '' } : null;
+      return html(portalPage({ project, items: mine, token: pm[1], flash: q.flash, error: q.error, extras, side, proofLinks, approval }));
     }
 
     if (path === '/static/editor.js') return { statusCode: 200, headers: { 'content-type': 'application/javascript; charset=utf-8', 'cache-control': 'max-age=300', 'x-content-type-options': 'nosniff' }, body: EDITOR_JS };
@@ -538,6 +541,11 @@ const route = async (event) => {
       await putConfig('seqstate', markStepDone(await getConfig('seqstate', {}).catch(() => ({})), String(f.key || ''), f.n));
       return redirect('/activities?flash=' + encodeURIComponent('Done. The next step shows up on its day.'));
     }
+    if (path === '/admin/preview-order-page') {
+      const pv = (await listProjects('demo')).projects[0];
+      if (!pv) return redirect('/admin?tab=orders&flash=' + encodeURIComponent('No sample project to preview yet.'));
+      return redirect(`/p/${portalToken(pv.id, key)}`);
+    }
     if (path === '/admin/checklists') {
       if (method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
@@ -698,8 +706,10 @@ const route = async (event) => {
       }
       const extraA = await getConfig('admin-extra', null).catch(() => null);
       const wfX = tab === 'work' ? { checklists: await getConfig('checklists', null).catch(() => null), custom: await getConfig('custom-stages', []).catch(() => []), cl: q.cl || 'sales' } : {};
-      const listsX = tab === 'sales' ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
-      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, ...wfX }));
+      const listsX = (tab === 'sales' || tab === 'orders') ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
+      const appsX = {};
+      if (tab === 'orders' || tab === 'cb') for (const a of ['cardpointe', 'clarity', 'xps', 'corebridge']) { try { appsX[a] = appStatus(a, await readApp(a)).connected; } catch { appsX[a] = false; } }
+      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, ...wfX }));
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);

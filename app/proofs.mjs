@@ -37,11 +37,11 @@ export function canSendProof(item) {
 }
 
 // What the customer's choice does. Pure, so it can be tested.
-export function decideProof(item, decision, { checks = [], notes = '' } = {}) {
+export function decideProof(item, decision, { checks = [], notes = '', list = APPROVAL_CHECKS, mustAll = MUST_TICK_ALL } = {}) {
   if (item.step !== 'proofwait') throw new Error('this proof is not waiting for approval');
   if (decision === 'approve') {
     const ticked = new Set(checks);
-    if (MUST_TICK_ALL && !APPROVAL_CHECKS.every((c) => ticked.has(c))) throw new Error('please tick every box before approving');
+    if (mustAll && !list.every((c) => ticked.has(c))) throw new Error('please tick every box before approving');
     return { to: 'files', note: 'Approved by the customer in the Order Portal.' };
   }
   if (decision === 'changes') {
@@ -109,12 +109,13 @@ export function sendProofPage({ user, item, project, contact, proof, portalUrl, 
 }
 
 // The customer's page. Plain, mobile-first, no staff navigation.
-export function portalPage({ project, items, token, flash, error, extras = '', side = '', proofLinks = {} }) {
+export function portalPage({ project, items, token, flash, error, extras = '', side = '', proofLinks = {}, approval = null }) {
+  const ACL = (approval && approval.list && approval.list.length) ? approval.list : APPROVAL_CHECKS;
   const waiting = items.filter((i) => i.step === 'proofwait');
   const others = items.filter((i) => i.step !== 'proofwait');
   const card = (it) => {
     const proof = latestProof(it.id);
-    const checks = APPROVAL_CHECKS.map((c, n) => `<label style="display:flex;gap:10px;align-items:flex-start;min-height:36px;font-size:15px"><input type="checkbox" name="check${n}" value="${esc(c)}" style="width:20px;height:20px;margin-top:2px;accent-color:#a8343f"> <span>${esc(c)}</span></label>`).join('');
+    const checks = (approval && approval.policy ? `<p style="margin:0;font-size:13px;color:#3d4658;background:#f8f9fb;border-radius:8px;padding:8px 10px">${esc(approval.policy)}</p>` : '') + ACL.map((c, n) => `<label style="display:flex;gap:10px;align-items:flex-start;min-height:36px;font-size:15px"><input type="checkbox" name="check${n}" value="${esc(c)}" style="width:20px;height:20px;margin-top:2px;accent-color:#a8343f"> <span>${esc(approval ? 'I checked the ' + c.charAt(0).toLowerCase() + c.slice(1) : c)}</span></label>`).join('');
     return `<section style="border:1px solid #e3e7ee;border-radius:12px;padding:16px;background:#fff;display:flex;flex-direction:column;gap:12px">
       <h2 data-free style="margin:0;font-size:18px">${esc(it.name)}</h2>
       <div style="font-size:13px;color:#5a6478">Proof version ${(proofLinks[it.id] && proofLinks[it.id].v) || proof.v}${it.revision ? ` · revision ${it.revision}` : ''}</div>

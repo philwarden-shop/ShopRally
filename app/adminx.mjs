@@ -5,6 +5,7 @@ import { ORIGINATIONS } from './origination.mjs';
 import { CLAIM_RULES } from './claims.mjs';
 import { DEFAULT_SEQUENCES } from './sequences.mjs';
 import { wfDefaults, mergeWf } from './adminwf.mjs';
+import { poDefaults, mergePo } from './adminpo.mjs';
 
 export const XROLES = [['Inside Sales', 'Inside'], ['Outside Sales', 'Outside'], ['Sales Manager', 'Manager'], ['Designer', 'Design'], ['Production', 'Prod.'], ['Owner/Admin', 'Admin']];
 export const XFEATS = [
@@ -30,6 +31,7 @@ export function extraDefaults() {
     rotation: [{ name: 'Phil Warden', on: true }, { name: 'Kristin Ames', on: true }, { name: 'Marcus', on: true }],
     booking: false,
     ...wfDefaults(),
+    ...poDefaults(),
   };
 }
 const clean = (v, n) => String(v ?? '').trim().replace(/\s+/g, ' ').slice(0, n);
@@ -67,7 +69,7 @@ export function mergeExtra(prev, f) {
     case 'rotation': x.rotation = x.rotation.map((r, i) => ({ ...r, on: f[`r_${i}`] === 'on' })); return { x, msg: 'Rotation saved.' };
     case 'rotadd': { const n = clean(f.name, 40); if (n.length < 2) throw new Error('enter the salesperson\u2019s name'); if (x.rotation.some((r) => r.name.toLowerCase() === n.toLowerCase())) throw new Error('that person is already in the rotation'); if (x.rotation.length >= 30) throw new Error('up to 30 people'); x.rotation = [...x.rotation, { name: n, on: true }]; return { x, msg: `${n} added to the rotation.` }; }
     case 'book': x.booking = !x.booking; return { x, msg: `Booking links are ${x.booking ? 'on' : 'off'}.` };
-    default: { const r = mergeWf(x, f); if (r) return r; throw new Error('unknown change'); }
+    default: { const r = mergeWf(x, f) || mergePo(x, f); if (r) return r; throw new Error('unknown change'); }
   }
 }
 
