@@ -602,8 +602,10 @@ const route = async (event) => {
       const admR = await getConfig('admin-settings', {}).catch(() => ({}));
       if (method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
-        try { await putConfig('admin-settings', mergeRules(admR, formBody(event))); return redirect('/admin/rules?flash=' + encodeURIComponent('Saved.')); }
-        catch (e) { return redirect('/admin/rules?flash=' + encodeURIComponent('Not saved: ' + e.message)); }
+        const bkR = q.back ? safeBack(q.back, '/admin/rules') : '/admin/rules';
+        const sepR = bkR.includes('?') ? '&' : '?';
+        try { await putConfig('admin-settings', mergeRules(admR, formBody(event))); return redirect(bkR + sepR + 'flash=' + encodeURIComponent('Saved.')); }
+        catch (e) { return redirect(bkR + sepR + 'flash=' + encodeURIComponent('Not saved: ' + e.message)); }
       }
       return html(rulesPage({ user, adm: admR, flash: q.flash || '' }));
     }
@@ -692,8 +694,9 @@ const route = async (event) => {
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
-      try { const cur = await getConfig('admin-extra', null).catch(() => null); const r = mergeExtra(cur, formBody(event)); await putConfig('admin-extra', r.x); return redirect('/admin?tab=company&flash=' + encodeURIComponent(r.msg)); }
-      catch (e) { return redirect('/admin?tab=company&flash=' + encodeURIComponent('Not saved: ' + e.message + '.')); }
+      const bkX = q.back ? safeBack(q.back, '/admin?tab=company') : '/admin?tab=company';
+      try { const cur = await getConfig('admin-extra', null).catch(() => null); const r = mergeExtra(cur, formBody(event)); await putConfig('admin-extra', r.x); return redirect(bkX + '&flash=' + encodeURIComponent(r.msg)); }
+      catch (e) { return redirect(bkX + '&flash=' + encodeURIComponent('Not saved: ' + e.message + '.')); }
     }
     if (path === '/admin/modifier-prices') {
       let list = [];

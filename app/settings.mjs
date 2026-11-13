@@ -1,6 +1,7 @@
 // Admin settings: 6 tabs, typed fields with defaults, status strip, Advanced sections. Stored as one config doc.
 import { page, esc, infoTip } from './views.mjs';
-import { companyExtras } from './adminx.mjs';
+import { companyExtras, salesExtras } from './adminx.mjs';
+import { rulesSections } from './salesrules.mjs';
 
 export const TABS = [
   ['company', 'Company'], ['sales', 'Sales'], ['pricing', 'Pricing'], ['work', 'Work'], ['orders', 'Customer Page & Payments'], ['cb', 'Connections'],
@@ -131,7 +132,7 @@ function adminShell({ locName = 'FASTSIGNS of Northern Kentucky', locDot = '#4fb
   return `<div style="padding:28px 32px 48px;box-sizing:border-box"><div style="max-width:980px;margin:0 auto;display:flex;flex-direction:column;gap:24px">
 <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px"><div><h1 style="margin:0;font-size:28px;font-weight:700">Admin Settings</h1><p style="margin:4px 0 0;color:#5a6478;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap">Settings for <span style="width:8px;height:8px;border-radius:4px;background:${locDot}"></span><b style="color:#1b2436">${esc(locName)}</b> only. Only admins see this page.</p></div>
 <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><a href="/billing" style="${BTN};min-height:44px;font-size:14px">Billing &amp; Add-Ons</a><span role="status" style="font-size:13px;font-weight:600;color:#1f6a43;display:inline-flex;align-items:center;gap:6px">✓ ${esc(flash || 'All changes saved')}</span></div></div>
-<nav role="tablist" aria-label="Admin sections" style="display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #d5dbe5;margin-bottom:-8px">${tabs}</nav>
+<div role="tablist" aria-label="Admin sections" style="display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid #d5dbe5;margin-bottom:-8px">${tabs}</div>
 ${chipHtml}${body}</div></div>`;
 }
 function adminCard({ id = '', title, desc = '', badge = null, action = '', body = '' }) {
@@ -171,11 +172,12 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
   const list = FIELDS[t];
-  const main = list.filter((x) => !x[5]);
-  const adv = list.filter((x) => x[5]);
+  const shown = list.filter((x) => !(t === 'work' && x[0].startsWith('target_')));
+  const main = shown.filter((x) => !x[5]);
+  const adv = shown.filter((x) => x[5]);
   const saved = s._savedAt?.[t];
   const changed = list.filter(([k, , type, d]) => type !== 'readonly' && s[k] !== d).length;
-  const counts = Object.fromEntries(Object.keys(FIELDS).map((k) => [k, 1 + (ATAB_LINKS[k] || []).length + (k === 'company' ? 7 : 0)]));
+  const counts = Object.fromEntries(Object.keys(FIELDS).map((k) => [k, 1 + (ATAB_LINKS[k] || []).length + (k === 'company' ? 7 : k === 'sales' ? 6 : k === 'work' ? 3 : 0)]));
   const savedTxt = saved ? `Saved ${new Date(saved).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'All changes saved';
   const std = { text: `${saved ? 'Settings saved' : 'Using the standard FASTSIGNS settings'} \u00b7 ${changed} changed from standard` };
   const chips = t === 'company' ? [{ text: '2 locations' }, { text: s.cbSync ? 'CoreBridge connected' : 'CoreBridge off' }, { text: 'Google Workspace not connected yet', warn: true }, std] : [std];
@@ -185,7 +187,10 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const linkCard = links ? adminCard({ title: t === 'company' ? 'People and Billing' : 'More Settings', desc: 'Each of these has its own page.', body: `<div style="padding:4px 20px 10px;display:flex;flex-direction:column">${links}</div>` }) : '';
   const locs = t === 'company' ? locationsCard({ locs: [{ name: s.companyName || 'FASTSIGNS of Northern Kentucky', dot: '#4fb3c9', here: true, conns: [['CoreBridge', s.cbSync ? 'Connected' : 'Off', !!s.cbSync], ['Google Workspace', 'Not connected yet', false], ['Phone', s.phone || 'Not set', s.phone ? true : null]] }, { name: 'Second location', dot: '#f2b84b', conns: [['CoreBridge', 'Needs its key', false], ['Google Workspace', 'Not connected yet', false]] }] }) : '';
   const sample = t === 'company' ? adminCard({ title: 'Sample Data', desc: 'Puts every sample task, board, customer note and approval back the way it started. Admin settings stay.', body: '<form method="post" action="/admin/reset-demo" style="padding:12px 20px 16px"><button class="btn">Reset Sample Data</button></form>' }) : '';
+  const rs = (t === 'sales' || t === 'work') ? rulesSections(s, `/admin?tab=${t}`) : null;
+  const sx = t === 'sales' ? salesExtras(extra, { tip: infoTip }) : null;
+  const tabExtras = t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + sx.claim : t === 'work' ? rs.stages + rs.reply + rs.hours : '';
   const msg = error ? `<div class="note" role="alert" style="margin:0;background:#fbeaec;color:#8f2a34">${esc(error)}</div>` : '';
-  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + settingsCard + linkCard + sample });
+  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + tabExtras + settingsCard + linkCard + sample });
   return page({ title: 'Admin Settings', user, tab: '', body });
 }
