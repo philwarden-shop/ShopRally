@@ -112,3 +112,10 @@ test('prospect project: hero actions, fewer tabs, scope card', () => {
   const h2 = projectPage({ user, mode: 'demo', p: { ...p, lane: 'progress' }, standing: '', tab: '' });
   assert.ok(h2.includes('&tab=products') && !h2.includes('Start Site Visit'));
 });
+import { newProject, newProjectPage } from '../app/create.mjs';
+test('add prospect: needs chips name the project, source and notes kept', () => {
+  const [p] = newProject([], { company: 'Acme', needs: ['Banners', 'Bogus', 'Trade show'], origination: 'expanded', notes: 'Big warehouse' });
+  assert.equal(p.name, 'Banners, Trade show'); assert.equal(p.origination, 'expanded'); assert.equal(p.notes, 'Big warehouse');
+  const h = newProjectPage({ user, f: { needs: ['Banners'], temperature: 'Hot' } });
+  assert.ok(/value="Banners" checked/.test(h) && /value="Hot" checked/.test(h) && h.includes('name="origination"'));
+});

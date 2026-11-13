@@ -22,5 +22,5 @@ test('add prospect: email, phone, chance to close, temperature; bad email refuse
   assert.deepEqual([l[0].email, l[0].phone, l[0].chance, l[0].temperature, l[0].total], ['dana@acme.com', '859-555-0100', 75, 'Hot', 2400]);
   assert.throws(() => C.newProject([], { name: 'X sign', company: 'Acme', email: 'bad' }), /email/);
   const h = C.newProjectPage({ user: {} });
-  assert.ok(h.includes('Add Prospect') && h.includes('Add and Start an Estimate') && h.includes('Chance to close') && h.includes('SalesMax will set up'));
+  assert.ok(h.includes('Add Prospect') && h.includes('Add and Start an Estimate') && h.includes('Chance to close') && h.includes('SalesMax Will Set Up'));
 });

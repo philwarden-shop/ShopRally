@@ -924,7 +924,7 @@ const route = async (event) => {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
         const f = formBody(event);
         let list = []; try { list = await getConfig('extra-projects', []); } catch { /* none */ }
-        try { const next = newProject(list, f, { salesperson: user.name || user.email }); await putConfig('extra-projects', next); const nid = next[next.length - 1].id; return redirect(f.go === 'estimate' ? `/projects/${nid}/build` : `/projects/${nid}?mode=demo`); }
+        try { { const raw0 = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || ''); f.needs = new URLSearchParams(raw0).getAll('needs'); } const next = newProject(list, f, { salesperson: user.name || user.email }); await putConfig('extra-projects', next); const nid = next[next.length - 1].id; return redirect(f.go === 'estimate' ? `/projects/${nid}/build` : `/projects/${nid}?mode=demo`); }
         catch (e) { return html(newProjectPage({ user, f, error: 'Not created: ' + e.message + '.' }), 400); }
       }
       return html(newProjectPage({ user, f: { company: q.company || '', name: String(q.name || '').slice(0, 120) } }));
