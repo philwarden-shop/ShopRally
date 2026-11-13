@@ -174,3 +174,15 @@ test('team: same first name gets its own key; people matched by full name', () =
   const rows = repRows({ projects: [{ salesperson: 'Kristin Ames', lane: 'progress' }, { salesperson: 'Kristin Wellbrock', lane: 'progress' }], tasksBy: { kristinw: [{ due: '2026-11-01', done: false }] }, today: '2026-11-13', team: t });
   assert.deepEqual(rows.map((r) => [r.name, r.pastDue]), [['Kristin Ames', 0], ['Kristin Wellbrock', 1]]);
 });
+import { itemsPanel } from '../app/boards.mjs';
+test('products tab: Send Proof dialog lists every product with a proof to send', () => {
+  const h = itemsPanel([{ id: 'a', projectId: 'p1', name: 'Lobby', step: 'salesrev' }, { id: 'b', projectId: 'p1', name: 'Desk', step: 'proofwait' }, { id: 'c', projectId: 'p1', name: 'Wall', step: 'wip' }], '/projects/p1?mode=demo');
+  assert.ok(h.includes('action="/projects/p1/send-proofs"') && h.includes('Send Proofs (2)') && h.includes('value="a" checked') && h.includes('value="b" ') && !h.includes('value="c"'));
+});
+import { syncPermits } from '../app/simpleboards.mjs';
+test('permits: products marked "needs a permit" get one linked card', () => {
+  const r = syncPermits([], [{ id: 'i1', projectId: 'p1', name: 'Monument' }, { id: 'i2', projectId: 'p1', name: 'Banner' }], { i1: true }, [{ id: 'p1', company: 'Acme' }], '2026-11-13');
+  assert.equal(r.added, 1); assert.deepEqual([r.records[0].item, r.records[0].col, r.records[0].owner, r.records[0].follow], ['i1', 'needs', 'Permits', '2026-11-15']);
+  assert.equal(syncPermits(r.records, [{ id: 'i1', projectId: 'p1', name: 'Monument' }], { i1: true }, [], '2026-11-13').added, 0);
+  assert.ok(itemsPanel([{ id: 'i1', projectId: 'p1', name: 'M', step: 'wip' }], '/x', null, { i1: true }).includes('Needs a Permit · on the Permits Board'));
+});

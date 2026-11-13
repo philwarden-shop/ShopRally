@@ -19,7 +19,7 @@ import { extrasHtml, addComment, decidePrice, demoPriceChange, DEFAULT_PRICE_THR
 import { settingsPage, mergeSettings , withAdminNav } from './settings.mjs';
 import { mergeExtra, assignLead } from './adminx.mjs';
 import { parseChecklistRows } from './adminwf.mjs';
-import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord, syncPurchasing } from './simpleboards.mjs';
+import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord, syncPurchasing, syncPermits } from './simpleboards.mjs';
 import { roleGroups, roleActivitiesPage } from './roleview.mjs';
 import { applyQuoteCheck } from './quotecheck.mjs';
 import { readPrefs, prefChange } from './account.mjs';
@@ -314,6 +314,7 @@ const route = async (event) => {
       const board = sbm[1];
       let records = demoRecords(board);
       try { records = await getConfig(`board-${board}`, records); } catch { /* demo */ }
+      if (board === 'permits' && method === 'GET' && !sbm[2]) { const sy = syncPermits(records, await listItems(), await getConfig('permit-flags', {}).catch(() => ({})), (await listProjects('demo')).projects, new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })); if (sy.added) { records = sy.records; await putConfig(`board-${board}`, records).catch(() => {}); } }
       if (board === 'purchasing' && method === 'GET' && !sbm[2]) { const sy = syncPurchasing(records, await listItems(), (await listProjects('demo')).projects, new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' })); if (sy.added) { records = sy.records; await putConfig(`board-${board}`, records).catch(() => {}); } }
       if (board === 'purchasing' && sbm[2] && sbm[3] === 'quote' && method === 'POST') {
         if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
@@ -416,6 +417,25 @@ const route = async (event) => {
       const demoV = (DEMO_PROOFS[pvm[1]] || []).reduce((a, p) => Math.max(a, p.v), 0);
       try { lst = addProofVersion(lst, formBody(event), { by: user.email, at: new Date().toISOString(), startAt: demoV }); await putConfig(`proofs-${pvm[1]}`, lst); return redirect(`/items/${pvm[1]}/send-proof?flash=${encodeURIComponent(`Proof v${lst[lst.length - 1].v} added.`)}`); }
       catch (e) { return redirect(`/items/${pvm[1]}/send-proof?flash=${encodeURIComponent('Not added: ' + e.message)}`); }
+    }
+    // Send several proofs on one project together (mockup SendProof). Test copy: nothing is emailed.
+    const pfm = path.match(/^\/items\/([\w-]+)\/permit$/);
+    if (pfm && method === 'POST') {
+      if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
+      const f = formBody(event); const fl = await getConfig('permit-flags', {}).catch(() => ({}));
+      if (f.on === '1') fl[pfm[1]] = true; else delete fl[pfm[1]];
+      await putConfig('permit-flags', fl);
+      const bk = safeBack(f.back, '/projects'); return redirect(bk + (bk.includes('?') ? '&' : '?') + 'flash=' + encodeURIComponent(f.on === '1' ? 'Marked as needing a permit. A card is on the Permits board.' : 'Permit flag removed.'));
+    }
+    const spm = path.match(/^\/projects\/([\w-]+)\/send-proofs$/);
+    if (spm && method === 'POST') {
+      if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
+      const raw = event.isBase64Encoded ? Buffer.from(event.body || '', 'base64').toString('utf8') : (event.body || '');
+      const ids = new URLSearchParams(raw).getAll('item'); const back = safeBack(new URLSearchParams(raw).get('back'), `/projects/${spm[1]}?mode=demo&tab=products`);
+      const its = (await listItems()).filter((i) => i.projectId === spm[1] && ids.includes(i.id) && canSendProof(i));
+      if (!its.length) return redirect(back + (back.includes('?') ? '&' : '?') + 'flash=' + encodeURIComponent('Pick at least one proof to send.'));
+      for (const it of its) if (it.step === 'salesrev') await moveItem(it.id, 'proofwait', { by: user.email, note: `Proof v${latestProof(it.id).v} sent to the customer.` });
+      return redirect(back + (back.includes('?') ? '&' : '?') + 'flash=' + encodeURIComponent(`${its.length} proof${its.length === 1 ? '' : 's'} marked as sent: ${its.map((i) => i.name).join(', ')}. Now waiting on the customer. (Test copy: no email went out.)`));
     }
     const sp = path.match(/^\/items\/([\w-]+)\/send-proof$/);
     if (sp) {
@@ -1173,7 +1193,7 @@ const route = async (event) => {
       if (mode === 'demo') {
         const all = await listItems();
         const its = all.filter((i) => i.projectId === p.id);
-        if (its.length) return html(projectPage({ extras: { ...extrasP, itemCount: its.length }, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo`, { total: p.total, discount: p.discount, balance: p.balance, deposit: p.balance != null && p.total != null ? Math.max(0, Number(p.total) - Number(p.balance)) : 0 }), cbStatus: projectCbStatus(all, p.id) }));
+        if (its.length) return html(projectPage({ extras: { ...extrasP, itemCount: its.length }, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo&tab=products`, { total: p.total, discount: p.discount, balance: p.balance, deposit: p.balance != null && p.total != null ? Math.max(0, Number(p.total) - Number(p.balance)) : 0 }, await getConfig('permit-flags', {}).catch(() => ({}))), cbStatus: projectCbStatus(all, p.id) }));
       }
       if (mode === 'demo' && ['prospect', 'estimate'].includes(p.lane)) return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: estimateCta(p) }));
       return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing }));

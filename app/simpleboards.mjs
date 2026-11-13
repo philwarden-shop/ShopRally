@@ -160,3 +160,16 @@ export function syncPurchasing(records = [], items = [], projects = [], today) {
   return { records: out, added };
 }
 
+// Permits: a product marked "Needs a permit" on the project's Products tab gets a Permits card, linked to it.
+export function syncPermits(records = [], items = [], flags = {}, projects = [], today) {
+  const out = [...records]; let added = 0;
+  const add = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  for (const it of items) {
+    if (!flags[it.id] || out.some((r) => r.item === it.id)) continue;
+    const pr = projects.find((p) => p.id === it.projectId) || {};
+    out.push({ id: `auto-${it.id}`, name: it.name, project: it.projectId, company: pr.company || '', city: '', col: 'needs', item: it.id, owner: 'Permits', follow: add(today, 2), auto: true });
+    added++;
+  }
+  return { records: out, added };
+}
+
