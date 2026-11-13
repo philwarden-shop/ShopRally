@@ -1142,7 +1142,7 @@ const route = async (event) => {
       if (mode === 'demo') {
         const all = await listItems();
         const its = all.filter((i) => i.projectId === p.id);
-        if (its.length) return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo`), cbStatus: projectCbStatus(all, p.id) }));
+        if (its.length) return html(projectPage({ extras: { ...extrasP, itemCount: its.length }, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: itemsPanel(its, `/projects/${p.id}?mode=demo`), cbStatus: projectCbStatus(all, p.id) }));
       }
       if (mode === 'demo' && ['prospect', 'estimate'].includes(p.lane)) return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing, itemsHtml: estimateCta(p) }));
       return html(projectPage({ extras: extrasP, stagePillHtml, tab: q.tab || '', user, mode, p, standing }));
