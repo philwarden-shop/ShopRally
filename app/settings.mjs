@@ -169,6 +169,30 @@ function frow([k, label, type, , help, , extra], v) {
   else input = `<input id="${id}" name="${k}" type="${type === 'number' ? 'number' : 'text'}" value="${esc(v)}" ${type === 'number' && extra ? `min="${extra[0]}" max="${extra[1]}"` : ''} style="font:inherit;font-size:13px;min-height:36px;border:1px solid #d5dbe5;border-radius:8px;padding:0 10px;box-sizing:border-box;width:${type === 'number' ? '120px' : '100%'}">`;
   return `<div style="display:grid;grid-template-columns:minmax(150px,1fr) minmax(0,2fr);gap:12px;align-items:${type === 'textarea' ? 'start' : 'center'};padding:10px 0;border-bottom:1px solid #eef1f5;font-size:13px"><span><label for="${id}" style="font-weight:600">${esc(label)}</label>${help ? `<span style="display:block;font-size:12px;color:#5a6478;line-height:1.4;margin-top:2px">${esc(help)}</span>` : ''}</span><span>${input}</span></div>`;
 }
+
+// Phil, Nov 13: every Admin section folds into a bar, closed by default, so it's easier to find what you need.
+const CHEV = '<svg aria-hidden="true" class="acolchev" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>';
+export function collapseSections(html) {
+  let out = '', i = 0;
+  while (true) {
+    const st = html.indexOf('<section', i);
+    if (st < 0) { out += html.slice(i); break; }
+    let depth = 0, j = st, end = -1;
+    const re = /<section\b|<\/section>/g; re.lastIndex = st;
+    for (let m; (m = re.exec(html));) { depth += m[0] === '</section>' ? -1 : 1; if (!depth) { end = m.index + 10; break; } }
+    if (end < 0) { out += html.slice(i); break; }
+    const sec = html.slice(st, end);
+    const hm = /<h2\b[^>]*>([\s\S]*?)<\/h2>/.exec(sec);
+    const title = hm ? hm[1].replace(/<span[^>]*>[\s\S]*?<\/span>|<button[\s\S]*?<\/button>|<details[\s\S]*?<\/details>/g, '').replace(/<[^>]+>/g, '').trim() : '';
+    const pm = /<\/h2>[\s\S]{0,400}?<p\b[^>]*>([\s\S]*?)<\/p>/.exec(sec);
+    const desc = pm ? pm[1].replace(/<[^>]+>/g, '').trim() : '';
+    out += html.slice(i, st) + (title ? `<details class="acol"><summary><span class="acolt">${CHEV}<b>${title}</b>${desc ? `<span hidden> · </span><span class="acold">${desc}</span>` : ''}</span></summary>${sec}</details>` : sec);
+    i = end;
+  }
+  return out;
+}
+const ACOL_CSS = '<style>details.acol{background:#ffffff;border:1px solid #e3e7ee;border-radius:12px}details.acol>summary{list-style:none;cursor:pointer;padding:14px 20px;min-height:52px;box-sizing:border-box;display:flex;align-items:center}details.acol>summary::-webkit-details-marker{display:none}details.acol>summary:hover{background:#f8f9fb;border-radius:12px}.acolt{display:grid;grid-template-columns:16px auto;column-gap:10px;align-items:center}.acolt b{font-size:16px;font-weight:700;color:#1b2436}.acold{grid-column:2;font-size:13px;color:#5a6478;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.acolchev{color:#5a6478;transition:transform .15s}details.acol[open]>summary .acolchev{transform:rotate(90deg)}details.acol[open]>summary .acold{display:none}details.acol[open]>summary{border-bottom:1px solid #eef1f5;border-radius:12px 12px 0 0}details.acol>section{border:0!important;border-radius:0 0 12px 12px!important}details.acol>section>div:first-child h2,details.acol>section>h2:first-child,details.acol>section>div:first-child>div:first-child>h2{display:none}details.acol>section>div:first-child h2+p,details.acol>section>div:first-child>div>h2+p{margin-top:0!important}</style>';
+const ACOL_BAR = '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:-12px"><button type="button" data-acol="open" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Expand All</button><button type="button" data-acol="close" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Collapse All</button></div>';
 export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales' }) {
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
@@ -199,6 +223,6 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const tabExtras = t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + custLists + imp : t === 'work' ? wx.boards + wx.rules + rs.stages + rs.reply + rs.hours + wx.cl + wx.permits + wx.tags + wx.css : '';
   const tail = (t === 'sales' || t === 'work') ? `<details style="background:#ffffff;border:1px solid #e3e7ee;border-radius:12px;padding:12px 20px"><summary style="cursor:pointer;font-size:14px;font-weight:700;min-height:32px;display:flex;align-items:center;gap:6px">Advanced <span style="font-weight:400;font-size:13px;color:#5a6478">· rarely changed: ${t === 'sales' ? 'Prospect Claim Rules, Sales Settings, more pages' : 'Proof rounds, quality control, more pages'}</span></summary><div style="display:flex;flex-direction:column;gap:16px;padding:12px 0 4px">${t === 'sales' ? sx.claim.replace(/^<details[^>]*>/, '<div>').replace(/<summary[\s\S]*?<\/summary>/, '').replace(/<\/details>$/, '</div>') : ''}${settingsCard}${linkCard}</div></details>` : '';
   const msg = error ? `<div class="note" role="alert" style="margin:0;background:#fbeaec;color:#8f2a34">${esc(error)}</div>` : '';
-  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + tabExtras + (tail || settingsCard + linkCard) + sample });
+  const body = adminShell({ locName: s.companyName || 'FASTSIGNS of Northern Kentucky', cur: t, counts, chips, flash: flash || savedTxt, body: msg + ACOL_CSS + ACOL_BAR + collapseSections(locs + (t === 'company' ? companyExtras(extra, { locName: s.companyName || 'FASTSIGNS of Northern Kentucky', tip: infoTip }) : '') + tabExtras + (tail || settingsCard + linkCard) + sample) });
   return page({ title: 'Admin Settings', user, tab: '', body });
 }

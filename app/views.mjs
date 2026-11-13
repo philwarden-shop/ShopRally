@@ -184,6 +184,9 @@ export function bare(title, message, link) {
 // so every small page behavior lives here and hooks onto data- attributes.
 export const UI_JS = `(() => {
   document.querySelectorAll('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => { if (el.form) el.form.submit(); }));
+  document.querySelectorAll('[data-acol]').forEach((b) => b.addEventListener('click', () => { const open = b.dataset.acol === 'open'; document.querySelectorAll('details.acol').forEach((d) => { d.open = open; }); }));
+  const openHash = () => { if (!location.hash) return; const el = document.getElementById(decodeURIComponent(location.hash.slice(1))); let d = el && el.closest('details'); while (d) { d.open = true; d = d.parentElement && d.parentElement.closest('details'); } if (el) el.scrollIntoView(); };
+  openHash(); window.addEventListener('hashchange', openHash);
   document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => { const i = document.querySelector(b.dataset.copy); if (!i) { location.hash = 'portal'; return; } if (navigator.clipboard) navigator.clipboard.writeText(i.value); else { i.select(); document.execCommand('copy'); } b.textContent = 'Link Copied'; }));
   document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
   document.querySelectorAll('[data-toggle-disable]').forEach((c) => c.addEventListener('change', () => { const t = document.querySelector(c.dataset.toggleDisable); if (t) t.disabled = !c.checked; }));

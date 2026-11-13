@@ -55,3 +55,12 @@ test('checklist board tabs switch boards and escape', () => {
   const w2 = workflowExtras({ tags: [{ name: '<b>', hint: '', boards: '', task: '', tags: ['<i>'] }] });
   assert.ok(!w2.tags.includes('<i>') && w2.tags.includes('&lt;i&gt;'));
 });
+test('admin sections fold into closed bars with Expand All', () => {
+  for (const tab of ['company', 'sales', 'work', 'pricing', 'orders', 'cb']) {
+    const h = settingsPage({ user, settings: {}, tab });
+    assert.ok(h.includes('data-acol="open"') && h.includes('<details class="acol"><summary>'), tab);
+    assert.ok(!/<details class="acol" open/.test(h), tab + ' starts closed');
+  }
+  const h = settingsPage({ user, settings: {}, tab: 'work' });
+  assert.ok(h.includes('<b>Project Stage Rules</b>') && h.includes('<b>Tags</b>'));
+});
