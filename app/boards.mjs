@@ -127,7 +127,7 @@ export function boardPage({ user, board, items, view, columns, log, flash, filte
       </section>`;
     }).join('');
     const n = steps.length + (mine.some((i) => i.step === 'hold') ? 1 : 0);
-    main = `<div class="kan" style="grid-template-columns:repeat(${n},minmax(220px,1fr))">${colsHtml}</div>`;
+    main = `<div class="kan" style="grid-template-columns:repeat(${n},minmax(${n > 6 ? 168 : 220}px,1fr))">${colsHtml}</div>`;
   }
   const logHtml = log && log.length ? `<div class="log"><b>Recent moves</b><ul style="margin:6px 0 0;padding-left:18px">${log.map((l) => `<li>${esc(new Date(l.at).toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit' }))}: “${esc((items.find((x) => x.id === l.itemId) || {}).name || l.itemId)}” ${esc(stepById(l.from)?.name)} → ${esc(stepById(l.to)?.name)}${l.reason ? ' (' + esc(l.reason) + ')' : ''}. ${l.cbWouldPush ? `Would push <b>${esc(l.cbWouldPush)}</b> to CoreBridge.` : 'Nothing sent to CoreBridge.'}</li>`).join('')}</ul></div>` : '';
   const instHtml = board === 'production' ? installsWeek(mine) : '';

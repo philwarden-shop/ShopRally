@@ -336,7 +336,7 @@ const route = async (event) => {
       let view = q.view || jar[`smx_view_${board}`] || (await savedView(board)) || 'board';
       if (q.view && ['board', 'list'].includes(q.view)) await rememberView(board, q.view);
       if (!['board', 'list'].includes(view)) view = 'board';
-      return html(simpleBoardPage({ user, board, records, view, flash: q.flash || '', checklists: { saved: await getConfig('checklists', null).catch(() => null), checks: await getConfig('checks', {}).catch(() => ({})) } }), 200, q.view ? [cookie(`smx_view_${board}`, view, 31536000)] : []);
+      return html(simpleBoardPage({ refs: Object.fromEntries((await listProjects('demo')).projects.map((pp) => [pp.id, { orderId: pp.orderId, name: pp.name }])), user, board, records, view, flash: q.flash || '', checklists: { saved: await getConfig('checklists', null).catch(() => null), checks: await getConfig('checks', {}).catch(() => ({})) } }), 200, q.view ? [cookie(`smx_view_${board}`, view, 31536000)] : []);
     }
     const bm = path.match(/^\/boards\/(design|production)$/);
     if (bm) {
