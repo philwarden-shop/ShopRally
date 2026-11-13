@@ -70,3 +70,4 @@ import('./setupsweep.test.mjs');
 import('./shipsweep.test.mjs');
 import('./sitevisit.test.mjs');
 import('./adminx.test.mjs');
+import('./nosecrets.test.mjs');
