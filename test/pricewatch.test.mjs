@@ -1,0 +1,22 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+const W = await import('../app/pricewatch.mjs');
+test('price protection: a price-list change flags open jobs; production keeps; keep/update resolve', () => {
+  const before = [{ group: 'G', field: 'Holes', choice: 'Four', how: 'sign', price: 6 }, { group: 'G', field: 'Labor', choice: '*', how: 'min', price: 1.25 }];
+  const after = [{ group: 'G', field: 'Holes', choice: 'Four', how: 'sign', price: 8 }, { group: 'G', field: 'Labor', choice: '*', how: 'min', price: 1.25 }];
+  const changes = W.diffPriceLists(before, after);
+  assert.deepEqual(changes.map((c) => [c.key, c.from, c.to]), [['G|Holes|Four', 6, 8]]);
+  const shared = { a: { lines: [{ key: 'G|Holes|Four', line: 'Sign holes', qty: 2, price: 6 }] }, b: { lines: [{ key: 'G|Holes|Four', line: 'x', qty: 1, price: 6 }] }, c: { lines: [{ key: 'G|Labor|*', line: 'y', qty: 1, price: 1.25 }] }, d: { lines: [{ key: 'G|Holes|Four', line: 'z', qty: 1, price: 6 }] } };
+  const projects = [{ id: 'a', name: 'A', lane: 'estimate' }, { id: 'b', name: 'B', lane: 'progress' }, { id: 'c', name: 'C', lane: 'estimate' }, { id: 'd', name: 'D', lane: 'complete' }];
+  const al = W.findAffected({ shared, changes, projects, at: '2026-11-12T23:00:00Z', by: 'phil' });
+  assert.deepEqual(Object.keys(al).sort(), ['a', 'b']);
+  assert.equal(al.a.delta, 4); assert.equal(al.a.status, 'open'); assert.equal(al.b.status, 'kept-auto');
+  assert.equal(W.priceTodos(al, '2026-11-12').length, 1);
+  assert.match(W.priceBox(al.a, 'a'), /Keep Shared Price[\s\S]*Update to Latest \(\+\$4\.00\)/);
+  const k = W.resolveAlert(al, shared, 'a', 'keep', { by: 'Phil', at: 'now' });
+  assert.equal(k.alerts.a.status, 'kept'); assert.equal(k.shared.a.lines[0].price, 6);
+  const u = W.resolveAlert(al, shared, 'a', 'update', { by: 'Phil', at: 'now' });
+  assert.equal(u.alerts.a.status, 'updated'); assert.equal(u.shared.a.lines[0].price, 8); assert.equal(u.shared.a.version, 2);
+  assert.throws(() => W.resolveAlert(k.alerts, k.shared, 'a', 'keep', {}), /nothing to decide/);
+  assert.match(W.priceBox(k.alerts.a, 'a'), /Shared prices kept/);
+});

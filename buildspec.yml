@@ -1,0 +1,16 @@
+version: 0.2
+phases:
+  install:
+    runtime-versions:
+      nodejs: 22
+  build:
+    commands:
+      - mkdir -p src && aws s3 cp --recursive --quiet "s3://$BUILD_BUCKET/source/" src/
+      - cd src && SNAP_DIR=snaps node --test test/ && cd ..
+      - aws s3 rm --recursive --quiet "s3://$BUILD_BUCKET/snaps/" || true
+      - aws s3 cp --recursive --quiet src/snaps "s3://$BUILD_BUCKET/snaps/" || true
+      - (cd src/app && zip -qr -9 -X ../../app.zip .)
+      - SHA=$(sha256sum app.zip | cut -c1-16)
+      - aws s3 cp --quiet app.zip "s3://$BUILD_BUCKET/packages/app-$SHA.zip"
+      - aws lambda update-function-code --function-name "$FUNCTION" --s3-bucket "$BUILD_BUCKET" --s3-key "packages/app-$SHA.zip" --query CodeSha256 --output text
+      - echo "DEPLOYED packages/app-$SHA.zip"

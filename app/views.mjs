@@ -1,0 +1,213 @@
+// Server-rendered pages, styled to match the approved SalesMax design.
+import { LANES } from './data.mjs';
+import { cardChecklist } from './checklists.mjs';
+import { accountMenu, themeCss } from './account.mjs';
+import { newMenu } from './create.mjs';
+
+export const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const money = (n) => '$' + Math.round(Number(n) || 0).toLocaleString('en-US');
+const nice = (iso) => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
+const prioColor = { High: '#a8343f', Medium: '#b7791f', Low: '#5a6478' };
+
+const CSS = `
+.itip{position:relative;display:inline-flex;align-items:center;vertical-align:middle}.itip button{font:inherit;display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border:0;border-radius:14px;background:transparent;color:#5a6478;cursor:pointer}.itip:hover button,.itip:focus-within button{background:#eef1f5}.itip [role=tooltip]{display:none;position:absolute;z-index:60;top:32px;left:-8px;width:300px;max-width:80vw;background:#16213a;color:#fff;font-size:13px;font-weight:400;line-height:1.45;border-radius:8px;padding:10px 12px;box-shadow:0 8px 24px rgba(22,33,58,.25);white-space:pre-line;text-align:left}.itip:hover [role=tooltip],.itip:focus-within [role=tooltip]{display:block}
+:root{--navy:#16213a;--red:#a8343f;--ink:#1b2436;--mute:#5a6478;--line:#e3e7ee;--bg:#f4f6f9}
+*{box-sizing:border-box}:focus-visible{outline:3px solid #4fb3c9;outline-offset:2px}.skip{position:absolute;left:-9999px}.skip:focus{left:8px;top:8px;z-index:100;background:#fff;padding:8px 12px;border-radius:8px}body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 Inter,system-ui,sans-serif}
+a{color:#1d4f91;text-decoration:none}a:hover{text-decoration:underline}
+body>header{position:sticky;top:0;z-index:20;background:var(--navy);color:#c9d1e0;display:flex;align-items:center;gap:8px 24px;padding:0 24px;min-height:60px;flex-wrap:wrap}
+.logo{display:flex;align-items:center;gap:10px;min-height:60px;text-decoration:none}.logo:hover{text-decoration:none}.logo .fs{font-weight:800;font-style:italic;font-size:20px;color:#fff;letter-spacing:.3px}.logo .sm{font-size:11px;font-weight:600;letter-spacing:1.5px;color:#b4bfd3;border-left:1px solid #2c3a58;padding-left:10px}
+nav{display:flex;flex:1 1 auto;flex-wrap:wrap}nav a{color:#c9d1e0;font-size:14px;font-weight:500;padding:0 14px;line-height:54px;border-top:3px solid transparent;border-bottom:3px solid transparent}
+nav a.on{color:#fff;font-weight:700;border-bottom-color:#e0636d}nav .nb{background:#a8343f;color:#fff;font-size:12px;font-weight:700;padding:1px 8px;border-radius:10px;margin-left:8px;line-height:18px;display:inline-block}nav a:hover{text-decoration:none;color:#fff}
+.mod{position:relative}.mod summary{list-style:none;cursor:pointer;display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:#fff;background:#24324f;border:1px solid #3b4a6b;border-radius:8px;padding:0 12px;min-height:36px}.mod summary::-webkit-details-marker{display:none}
+.modm{position:absolute;top:44px;right:0;z-index:30;width:250px;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(22,33,58,.25);padding:6px;display:flex;flex-direction:column;gap:2px}.modm a{display:flex;flex-direction:column;padding:8px 10px;border-radius:8px;color:var(--ink)}.modm a:hover{text-decoration:none;background:#f4f6f9}.modm a.cur{background:#f4f6f9}.modm b{font-size:14px}.modm span{font-size:12px;color:var(--mute)}
+.who{display:flex;align-items:center;gap:8px;color:#c9d1e0;font-size:12px}
+.av{position:relative;width:34px;height:34px;border-radius:17px;background:#2c3a58;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
+.av i{position:absolute;right:-1px;bottom:-1px;width:10px;height:10px;border-radius:5px;background:#4fb3c9;border:2px solid var(--navy)}
+.bar{display:flex;align-items:center;gap:10px;padding:14px 20px;flex-wrap:wrap}
+h1{margin:0;font-size:20px}.pill{font-size:11px;font-weight:700;padding:2px 8px;border-radius:10px}
+.btn{font:inherit;font-size:13px;font-weight:600;border:1px solid #d5dbe5;background:#fff;color:var(--ink);border-radius:8px;padding:0 12px;min-height:36px;display:inline-flex;align-items:center;cursor:pointer}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.seg{display:inline-flex;border:1px solid #d5dbe5;border-radius:8px;overflow:hidden}.seg a{padding:0 12px;line-height:34px;font-size:13px;font-weight:600;color:var(--ink);background:#fff}
+.seg a.on{background:var(--navy);color:#fff}.seg a:hover{text-decoration:none}
+.board{display:grid;grid-template-columns:repeat(5,minmax(220px,1fr));gap:12px;padding:0 20px 20px;overflow-x:auto}
+.lane{background:#e9edf3;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:300px}
+.lane h2{margin:0;font-size:13px;display:flex;justify-content:space-between;color:#3d4658}.lane h2 span{font-weight:500;color:var(--mute)}
+.card{background:#fff;border-radius:10px;padding:10px 12px;border:1px solid var(--line);display:flex;flex-direction:column;gap:5px;color:var(--ink)}
+.card:hover{text-decoration:none;border-color:#9aa6bd}.card b{font-size:14px}.card .co{font-size:12px;color:var(--mute)}
+.row{display:flex;justify-content:space-between;gap:8px;font-size:12px}.ai{font-size:12px;color:#3d4658;background:#f4f6f9;border-radius:6px;padding:4px 6px}
+.note{margin:0 20px 12px;padding:8px 12px;border-radius:8px;font-size:12px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 20px 30px}.panel{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 20px;margin-bottom:14px}
+.kv{display:grid;grid-template-columns:160px 1fr;gap:6px 12px;font-size:13px}.kv div:nth-child(odd){color:var(--mute)}
+.chev{display:flex;gap:4px;margin:10px 0}.chev div{flex:1;text-align:center;font-size:12px;font-weight:600;padding:8px 4px;background:#e9edf3;color:var(--mute);clip-path:polygon(0 0,92% 0,100% 50%,92% 100%,0 100%,8% 50%)}
+.chev div.done{background:#1f6a43;color:#fff}.chev div.cur{background:var(--navy);color:#fff}
+table{width:100%;border-collapse:collapse;font-size:13px}td,th{text-align:left;padding:8px;border-bottom:1px solid #eef1f5}th{color:var(--mute);font-weight:600}
+@media (max-width:700px){
+.aw,.pw,.cw,.rw,.pfw,.aw2{padding-left:16px!important;padding-right:16px!important}
+.score,.ctiles,.ptiles{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px!important}
+.tile,.ctile,.ptile{padding:12px 14px!important}.tile .v,.ctile .v,.ptile .v{font-size:24px!important}
+.focus ol,.act{grid-template-columns:1fr!important}
+.journey{grid-template-columns:repeat(2,minmax(0,1fr))!important}.journey a{clip-path:none!important;border-radius:8px}
+.rhead{padding:16px!important}.rstats{grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:12px!important}.raside{max-width:none!important}
+.pnums,.pstages{grid-template-columns:repeat(2,minmax(0,1fr))!important}.pstages li{clip-path:none!important;border-radius:6px;padding-left:12px!important}.pnums div{padding-left:0!important}
+.pmoney{gap:16px!important}.ptabs{top:0!important}
+.aw2>.aside{position:static!important}
+.ctool input{width:100%!important}
+.task{flex-wrap:wrap}.task .due{flex-basis:auto}
+}
+@media (max-width:700px){nav{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch}nav a{white-space:nowrap;padding:0 10px}.kv{grid-template-columns:1fr}.board{grid-template-columns:repeat(5,82vw)}}
+`;
+
+let PARALLEL = false;
+export function setParallel(v) { PARALLEL = !!v; }
+export function page({ title, user, tab, body, mode, badges = {}, mod = '' }) {
+  // Matches the mockup header: FASTSIGNS® | SALESMAX, five main tabs (+ Calls for admins), boards in the module switcher.
+  const MODULES = [['Sales', '/activities', 'Customers, projects, email'], ['Design', '/boards/design', 'Design board and proofs'], ['Production', '/boards/production', 'Production board and installs'], ['Permits', '/boards/permits', 'Applications, approvals, inspections'], ['Purchasing', '/boards/purchasing', 'Vendor quotes, POs, tracking'], ['Field', '/field', 'Site surveys and installs on a phone']];
+  const curMod = (MODULES.find(([n]) => n === (mod || tab) && n !== 'Sales') || MODULES[0]);
+  const boardMod = ['Design', 'Production', 'Permits', 'Purchasing'].includes(curMod[0]) ? curMod[0].toLowerCase() : '';
+  const tabs = [['Activities', boardMod ? `/activities?as=${boardMod}` : '/activities'], ['Customers', '/customers'], ['Projects', '/projects'], ['Performance', '/performance'], ['Team', '/risks'], ...(user?.isAdmin ? [['Calls', '/calls']] : []), ...(curMod[0] !== 'Sales' ? [[curMod[0], curMod[1]]] : [])];
+  const modMenu = `<details class="mod"><summary aria-label="Module: ${curMod[0]}. Switch module"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><rect x="14" y="14" width="7" height="7" rx="1"></rect></svg>${curMod[0]}<svg aria-hidden="true" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg></summary><div role="menu" class="modm">${MODULES.map(([n, h, d]) => `<a role="menuitemradio" aria-checked="${n === curMod[0]}" href="${h}" class="${n === curMod[0] ? 'cur' : ''}"><b>${n}</b><span>${d}</span></a>`).join('')}</div></details>`;
+  const initials = String(user?.name || user?.email || '?').split(/[ @.]/).filter(Boolean).slice(0, 2).map((s) => s[0].toUpperCase()).join('');
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(title)} · SalesMax</title><link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet"><style>${CSS}</style><style>${themeCss(user?.prefs?.theme)}</style></head><body>
+<a class="skip" href="#main">Skip to Content</a><header><a class="logo" href="/activities" aria-label="SalesMax home"><span class="fs">FASTSIGNS®</span><span class="sm">SALESMAX</span></a><nav aria-label="Main">${tabs.map(([n, h]) => `<a href="${h}${mode && !h.startsWith('/boards') ? `${h.includes('?') ? '&' : '?'}mode=${esc(mode)}` : ''}" class="${tab === n ? 'on' : ''}"${tab === n ? ' aria-current="page"' : ''}>${n}${badges[n] ? `<span class="nb">${badges[n]}</span>` : ''}</a>`).join('')}</nav>
+${user?.email ? '<a href="/search" aria-label="Search everything" title="Search" style="display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:8px;color:#fff"><svg aria-hidden="true" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"></circle><path d="M21 21l-4.3-4.3"></path></svg></a>' + newMenu() + modMenu : ''}<div class="who">${accountMenu(user || {}, user?.prefs)}</div></header>
+<main id="main">${PARALLEL ? '<div role="status" style="background:#fdf3dc;color:#6b4500;font-size:13px;font-weight:600;padding:10px 20px">Parallel Mode is on. SalesMax is using real CoreBridge data but sends nothing: no emails, no CoreBridge changes, no shipping orders.</div>' : ''}${body}</main><script src="/static/ui.js" defer></script></body></html>`;
+}
+
+export function boardPage({ user, mode, lanes: lanes0, syncedAt, flash, tiles = '', flags = {}, checklists = null, f = {} }) {
+  // Mockup toolbar: Board | List, Show, Due, Priority (GET filters, remembered in the link).
+  const todayF = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const soonF = new Date(Date.now() + 7 * 86400000).toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const bucket = (d) => (!d ? 'later' : d < todayF ? 'past' : d === todayF ? 'today' : d <= soonF ? 'soon' : 'later');
+  const keep = (p, l) => (!f.show || f.show === 'all' || (f.show === 'stuck' && (flags[p.id] || []).includes('Stuck')) || (f.show === 'nonext' && (flags[p.id] || []).includes('No next step')) || (f.show === 'estimates' && ['prospect', 'estimate'].includes(l.key)) || (f.show === 'orders' && !['prospect', 'estimate'].includes(l.key)))
+    && (!f.due || f.due === 'all' || bucket(p.due) === f.due) && (!f.prio || f.prio === 'all' || String(p.priority || '').startsWith(f.prio));
+  const lanes = lanes0.map((l) => { const items = l.items.filter((p) => keep(p, l)); return { ...l, items, total: items.reduce((a, p) => a + (Number(p.total) || 0), 0) }; });
+  const qs = (over) => { const o = { mode, ...f, ...over }; return '/projects?' + Object.entries(o).filter(([, x]) => x && x !== 'all').map(([k2, x]) => `${k2}=${encodeURIComponent(x)}`).join('&'); };
+  const sel = (name, label, opts) => `<label style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--mute)">${label}<select name="${name}" style="font:inherit;font-size:14px;border:1px solid #d5dbe5;border-radius:8px;padding:0 10px;min-height:38px;background:#fff;color:var(--ink)">${opts.map(([k2, t]) => `<option value="${k2}" ${String(f[name] || 'all') === k2 ? 'selected' : ''}>${t}</option>`).join('')}</select></label>`;
+  const isList = f.view === 'list';
+  const toolbar = `<form method="get" action="/projects" style="display:flex;flex-wrap:wrap;gap:16px;align-items:center"><input type="hidden" name="mode" value="${esc(mode)}"><input type="hidden" name="view" value="${isList ? 'list' : 'board'}"><div class="seg" role="group" aria-label="View"><a href="${qs({ view: 'board' })}" class="${isList ? '' : 'on'}">Board</a><a href="${qs({ view: 'list' })}" class="${isList ? 'on' : ''}">List</a></div>
+${sel('show', 'Show', [['all', 'All open projects'], ['stuck', 'Stuck only'], ['nonext', 'Missing a next step'], ['estimates', 'Estimates only'], ['orders', 'Orders only']])}${sel('due', 'Due', [['all', 'Any time'], ['past', 'Past due'], ['today', 'Due today'], ['soon', 'Next 7 days'], ['later', 'Later']])}${sel('prio', 'Priority', [['all', 'All priorities'], ['High', 'High'], ['Med', 'Medium'], ['Low', 'Low']])}<button class="btn">Apply</button>${['show', 'due', 'prio'].some((k2) => f[k2] && f[k2] !== 'all') ? `<a class="btn" href="${qs({ show: '', due: '', prio: '' })}">Clear</a>` : ''}</form>`;
+  const live = mode === 'live';
+  const modeSwitch = `<div class="seg" role="group" aria-label="Data"><a href="/projects?mode=demo" class="${live ? '' : 'on'}">Demo data</a><a href="/projects?mode=live" class="${live ? 'on' : ''}">Live CoreBridge</a></div>`;
+  const banner = live
+    ? `<div class="note" style="background:#e8f0fb;color:#1d4f91">Live, read-only from CoreBridge. Newest 25 estimates. ${syncedAt ? 'Last refreshed ' + esc(new Date(syncedAt).toLocaleString('en-US', { timeZone: 'America/New_York' })) + '.' : 'Not refreshed yet.'}
+       <form method="post" action="/projects/sync" style="display:inline"><button class="btn" style="min-height:28px;margin-left:8px">Refresh from CoreBridge</button></form></div>`
+    : `<div class="note" style="background:#fff4e0;color:#7a4e00">Demo data: sample customers, safe to show anyone.</div>`;
+  const cl = (p, l) => (checklists ? cardChecklist({ id: p.id, step: `sales-${l.key}` }, checklists.saved, (checklists.checks || {})['p:' + p.id], '/projects?mode=demo', `/projects/${p.id}/check?lane=${l.key}`) : '');
+  const LANE_UI = { prospect: ['#9aa6bd', 'To Estimate: needs a contact and a scope'], estimate: ['#1d4f91', 'To In production: customer approved + deposit or PO'], progress: ['#6b4fa0', 'To Built: every item passed QC · permits approved'], built: ['#1f6a43', 'To Complete: hand-off done (pickup, install or ship)'], complete: ['#3d4658', 'Drops off the board once paid in full'] };
+  const PRIO = { High: ['#fbeaec', '#8f2a34', '#e3a3aa'], Medium: ['#fdf3dc', '#7a5600', '#e9cf8a'], Med: ['#fdf3dc', '#7a5600', '#e9cf8a'], Low: ['#eef0f4', '#3d4658', '#d5dbe5'] };
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const dueTone = (d) => (!d ? '#5a6478' : d < today ? '#a8343f' : d === today ? '#8a6a00' : '#1d4f91');
+  const circle = (f = []) => (f.includes('Stuck') ? ['#c8414d', '#8f2a34', 'A task is late'] : f.includes('No next step') ? ['#ffffff', '#8a93a5', 'No next-step task'] : ['#2e9d62', '#1f6a43', 'Tasks on schedule']);
+  const cal = '<svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>';
+  const cards = (l) => l.items.map((p) => {
+    const [cf, cs, ct] = circle(flags[p.id]);
+    const pr = PRIO[p.priority] || PRIO.Low;
+    return `<div class="pcard">
+      <div class="pt"><a href="/projects/${esc(p.id)}?mode=${esc(mode)}">${esc(p.name)}</a><svg role="img" aria-label="${ct}" width="18" height="18" viewBox="0 0 24 24" style="flex:0 0 18px"><circle cx="12" cy="12" r="9" fill="${cf}" stroke="${cs}" stroke-width="2"></circle></svg></div>
+      <div class="pco">${esc(p.company)}</div>
+      <div class="prow">${p.priority ? `<span class="ppr" title="Customer priority, from the customer profile" style="background:${pr[0]};color:${pr[1]};border-color:${pr[2]}">${esc(p.priority)}${p.prioScore != null ? ' · ' + p.prioScore : ''}</span>` : '<span></span>'}${p.due ? `<span class="pdue" style="color:${dueTone(p.due)}">${cal}${l.key === 'prospect' || l.key === 'estimate' ? 'Need by ' : 'Due '}${esc(nice(p.due))}</span>` : ''}</div>
+      <div class="prow"><b class="pval">${money(p.total)}</b><span class="pbadge">${esc(p.status)}</span></div>
+      ${flags[p.id] ? `<div style="display:flex;gap:4px;flex-wrap:wrap">${flags[p.id].map((f) => `<span class="pchip" style="background:${f === 'Stuck' ? '#fbeaec' : '#fdf3dc'};color:${f === 'Stuck' ? '#8f2a34' : '#7a4e00'}">${esc(f)}</span>`).join('')}</div>` : ''}${p.insight ? `<div class="pai"><svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="#7a5bb0" style="flex:0 0 13px;margin-top:2px"><path d="M12 2l2.2 6.6L21 11l-6.8 2.4L12 20l-2.2-6.6L3 11l6.8-2.4z"></path></svg>${esc(p.insight)}</div>` : ''}${cl(p, l)}</div>`;
+  }).join('') || '<div class="pempty">Nothing here</div>';
+  const laneHtml = (l) => { const [c, rule] = LANE_UI[l.key] || ['#5a6478', '']; return `<section class="plane" aria-label="${esc(l.name)}"><div class="plh" style="border-bottom-color:${c}"><div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px"><h2 data-free>${esc(l.name)}</h2><span>${l.items.length}</span></div><div class="ptot">${money(l.total)}</div><div class="prule">${esc(rule)}</div></div>${cards(l)}</section>`; };
+  function listHtml() {
+    const rows = lanes.flatMap((l) => l.items.map((p) => ({ p, l }))).sort((a, b) => String(a.p.due || '9').localeCompare(String(b.p.due || '9')));
+    return `<section class="panel" style="margin:0;overflow-x:auto" aria-label="Project list"><table><thead><tr><th>Project</th><th>Customer</th><th>Stage</th><th>Priority</th><th>Due</th><th style="text-align:right">Value</th><th>Status</th><th></th></tr></thead><tbody>${rows.map(({ p, l }) => `<tr><td><a href="/projects/${esc(p.id)}?mode=${esc(mode)}"><b>${esc(p.name)}</b></a></td><td>${esc(p.company)}</td><td>${esc(l.name)}</td><td>${p.priority ? `${esc(p.priority)}${p.prioScore != null ? ' · ' + p.prioScore : ''}` : ''}</td><td style="color:${dueTone(p.due)};font-weight:600">${esc(nice(p.due) || '')}</td><td style="text-align:right">${money(p.total)}</td><td>${esc(p.status || '')}</td><td>${(flags[p.id] || []).map((x) => `<span class="pchip" style="background:${x === 'Stuck' ? '#fbeaec' : '#fdf3dc'};color:${x === 'Stuck' ? '#8f2a34' : '#7a4e00'}">${esc(x)}</span>`).join(' ')}</td></tr>`).join('') || '<tr><td colspan="8" style="color:var(--mute)">No projects match.</td></tr>'}</tbody></table></section>`;
+  }
+  const PCSS = `.pw{padding:28px 32px 48px;display:flex;flex-direction:column;gap:20px}.pw .note{margin:0}.pw .bar{padding:0}
+.pboard{overflow-x:auto;padding-bottom:8px}.pgrid{display:grid;grid-template-columns:repeat(5,minmax(230px,1fr));gap:12px;min-width:1240px}
+.plane{background:#eaedf2;border-radius:12px;padding:10px;display:flex;flex-direction:column;gap:10px;min-height:560px}
+.plh{padding:4px 6px 6px;border-bottom:3px solid}.plh h2{margin:0;font-size:14px;font-weight:700}.plh span{font-size:12px;color:var(--mute)}.ptot{font-size:12px;color:#3d4658;margin-top:2px}.prule{font-size:11px;color:#1d4f91;font-weight:600;margin-top:4px;line-height:15px;min-height:30px}
+.pcard{display:flex;flex-direction:column;gap:6px;background:#fff;border:1px solid var(--line);border-radius:10px;padding:12px;color:var(--ink)}
+.pt{display:flex;justify-content:space-between;gap:6px;align-items:flex-start}.pt a{flex:1 1 auto;font-size:14px;font-weight:600;color:var(--ink)}.pco{font-size:12px;color:var(--mute);margin-top:-2px}
+.prow{display:flex;align-items:center;justify-content:space-between;gap:6px;flex-wrap:wrap}.ppr{font-size:11px;font-weight:700;padding:0 8px;min-height:22px;border-radius:10px;border:1px solid;display:inline-flex;align-items:center}
+.pdue{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;white-space:nowrap}.pval{font-size:14px;font-weight:700}.pbadge{font-size:11px;font-weight:600;padding:2px 8px;border-radius:10px;background:#e8f0fb;color:#1d4f91}
+.pchip{font-size:10px;font-weight:700;padding:2px 6px;border-radius:6px}.pai{font-size:12px;color:#3d4658;display:flex;gap:6px;align-items:flex-start}.pempty{font-size:12px;color:var(--mute);text-align:center;padding:16px 8px;border:1px dashed #c9d1e0;border-radius:10px}`;
+  const body = `<div class="pw"><header style="display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px"><div><h1 class="vh" style="position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip:rect(0 0 0 0)">Projects</h1><p style="margin:0;color:#3d4658;font-size:14px">${live ? (syncedAt ? 'Updated ' + esc(new Date(syncedAt).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })) : 'Not refreshed yet') : 'Stages move on their own as the order moves. Orders paid in full drop off the board.'}</p></div>${modeSwitch}</header>
+${flash ? `<div class="note" style="background:#e6f2ec;color:#1f6a43">${esc(flash)}</div>` : ''}${banner}
+${tiles}${toolbar}${isList ? listHtml() : `<section class="pboard" aria-label="Pipeline board"><div class="pgrid">${lanes.map(laneHtml).join('')}</div></section>`}</div><style>${PCSS}</style>`;
+  return page({ title: 'Projects', user, tab: 'Projects', body, mode });
+}
+
+export function projectPage({ user, mode, p, itemsHtml, cbStatus, standing = '', tab = '', extras = {}, stagePillHtml = '' }) {
+  const idx = LANES.findIndex((l) => l.key === p.lane);
+  const stages = LANES.map((l, i) => { const [bg, fg] = i < idx ? ['#e6f2ec', '#1f6a43'] : i === idx ? ['#16213a', '#ffffff'] : ['#eef1f5', '#5a6478']; return `<li ${i === idx ? 'aria-current="step"' : ''} style="background:${bg};color:${fg}"><span>${esc(l.name)}</span><small>${i < idx ? 'Done' : i === idx ? 'Now' : ''}</small></li>`; }).join('');
+  const items = (p.items || []).length
+    ? `<table><thead><tr><th>Item</th><th>Status</th></tr></thead><tbody>${p.items.map((i) => `<tr><td>${esc(i.name)}</td><td>${esc(i.status)}</td></tr>`).join('')}</tbody></table>`
+    : `<p style="color:var(--mute);margin:0">${p.source === 'corebridge' ? `${(p.itemIds || []).length} item(s) in CoreBridge. Item detail arrives in the next slice.` : 'No items yet.'}</p>`;
+  const today = new Date().toLocaleDateString('en-CA', { timeZone: 'America/New_York' });
+  const dueColor = !p.due ? '#5a6478' : p.due < today ? '#a8343f' : p.due === today ? '#874511' : '#1b2436';
+  const nums = [[p.lane === 'prospect' || p.lane === 'estimate' ? 'Need by' : 'Order due', nice(p.due) || '—', dueColor], ['Salesperson', p.salesperson || '—', '#1b2436'], ['Contact', p.contact || '—', '#1b2436'], ['Status', p.status || '—', '#1b2436'], ['Customer priority', p.priority || '—', p.priority === 'High' ? '#8f2a34' : '#1b2436']];
+  const cslug = String(p.company || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  // Mockup tabs as in-page jumps, so every form stays on one page and nothing is hidden.
+  const ANCH = [['Hand-off and address', 'handoff'], ['Email', 'email'], ['History', 'activity'], ['Customer PO', 'po'], ['Customer order page', 'portal']];
+  let anchored = String(standing || '');
+  for (const [label, id] of ANCH) anchored = anchored.replace(`aria-label="${label}"`, `aria-label="${label}" id="${id}"`);
+  // Mockup tabs (Activity · Scope & Site Survey · Products · Tasks · Email · Notes · Files). Activity shows everything;
+  // the others show only their part of the page, so every form keeps working where it is.
+  const TABS_P = [['', 'Activity'], ['scope', 'Scope & Site Survey'], ['products', 'Products'], ['tasks', 'Tasks'], ['email', 'Email'], ['notes', 'Notes'], ['files', 'Files']];
+  const t0 = TABS_P.some(([k2]) => k2 === tab) ? tab : '';
+  const SHOW = { scope: ['Where This Stands', 'Expected ready date', 'Customer PO', 'Hand-off and address', 'Customer Flags'], products: ['Items', 'Shipping', 'Price list changed'], tasks: ['Next steps', 'Project tasks'], email: ['Email'], notes: ['Project notes', 'History'], files: ['Files'] };
+  const hideCss = Object.entries(SHOW).map(([k2, labels]) => `.wsb[data-t="${k2}"]>*:not(style)${labels.map((l) => `:not([aria-label="${l}"])`).join('')}${k2 === 'tasks' ? ':not(.nstep)' : ''}{display:none}`).join('');
+  const ptabs = `<nav class="ptabs" aria-label="Project views">${TABS_P.map(([k2, l]) => `<a href="/projects/${esc(p.id)}?mode=${esc(mode)}${k2 ? '&tab=' + k2 : ''}" class="${t0 === k2 ? 'on' : ''}"${t0 === k2 ? ' aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const filesHtml = extras.files || `<section class="panel" aria-label="Files"><h2 style="margin:0 0 8px;font-size:16px">Files</h2><p style="margin:0;font-size:13px;color:var(--mute)">Proofs, artwork and site photos live in this job's Google Drive folder. Linking the folder here needs the Google Drive connection.</p></section>`;
+  const asideHtml = `<aside class="paside" aria-label="Project details"><section class="pcard2"><h2>Details</h2>${nums.map(([k2, val, c]) => `<div class="fact"><span>${esc(k2)}</span><span style="color:${c}">${esc(val)}</span></div>`).join('')}<div class="fact"><span>Location</span><span>Northern Kentucky</span></div></section>
+<section class="pcard2"><h2>Hand-Offs</h2><p style="margin:0;font-size:13px;color:#3d4658">How and where this job leaves the shop: pickup, delivery, install or ship.</p><a href="/projects/${esc(p.id)}?mode=${esc(mode)}&tab=scope#handoff" style="font-size:13px;font-weight:600">Open Hand-Off &amp; Address</a></section>
+<section class="pcard2"><h2>Contact</h2><div style="font-size:14px;font-weight:600">${esc(p.contact || '—')}</div><a href="/customers/${esc(cslug)}" style="font-size:13px">${esc(p.company)}</a><a href="/customers/${esc(cslug)}?tab=email#compose" style="font-size:13px;font-weight:600">Email Them</a></section></aside>`;
+  const PRCSS = `.pcols{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start}.paside{flex:1 1 260px;max-width:320px;min-width:0;display:flex;flex-direction:column;gap:16px}.pcard2{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}.pcard2 h2{margin:0;font-size:14px}.pcard2 .fact{display:flex;justify-content:space-between;gap:12px;font-size:13px}.pcard2 .fact span:first-child{color:var(--mute)}.pcard2 .fact span:last-child{font-weight:600;text-align:right}
+.pws{flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:0}.wsb{display:flex;flex-direction:column;gap:14px;padding-top:14px}.wsb>.panel{margin:0}@media (max-width:700px){.paside{max-width:none}}
+.ptabs{position:sticky;top:60px;z-index:10;display:flex;gap:4px;overflow-x:auto;background:#fff;border:1px solid var(--line);border-radius:12px;padding:0 12px}.ptabs a{font-size:14px;font-weight:500;color:var(--mute);padding:0 12px;min-height:46px;display:inline-flex;align-items:center;white-space:nowrap;border-bottom:3px solid transparent}.ptabs a.on,.ptabs a:hover{color:var(--ink);border-bottom-color:#a8343f;text-decoration:none}.rw [id]{scroll-margin-top:120px}
+.rw{max-width:1240px;margin:0 auto;padding:20px 32px 48px;display:flex;flex-direction:column;gap:20px}.rw .note{margin:0}.rw>.panel{margin:0}
+.crumb{font-size:13px;color:var(--mute)}.phead{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 20px;display:flex;flex-direction:column;gap:12px}
+.phead h1{margin:0;font-size:18px;line-height:1.3;overflow-wrap:anywhere}.phead .sub{font-size:13px;color:var(--mute);margin-top:4px}.pmoney{margin:0;display:flex;gap:28px;flex-wrap:wrap}.pmoney dt,.pnums dt{font-size:12px;color:var(--mute)}.pmoney dd{margin:0;font-size:18px;font-weight:700}
+.pstages{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(${LANES.length},minmax(0,1fr));gap:2px}.pstages li{padding:6px 14px 6px 26px;min-height:40px;display:flex;flex-direction:column;justify-content:center;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%,14px 50%)}.pstages li:first-child{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%);padding-left:14px}.pstages span{font-size:13px;font-weight:700}.pstages small{font-size:11px}
+.pnums{margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px}.pnums div{padding-left:26px;min-width:0}.pnums div:first-child{padding-left:14px}.pnums dd{margin:0;font-size:15px;font-weight:700;overflow-wrap:anywhere}
+@media (max-width:800px){.pnums{grid-template-columns:repeat(2,minmax(0,1fr))}.pstages{grid-template-columns:repeat(2,minmax(0,1fr))}}`;
+  const body = `<div class="rw"><div class="crumb"><a href="/projects?mode=${esc(mode)}">Projects</a> <span aria-hidden="true">›</span> ${esc(p.orderId ? 'Order ' + p.orderId : p.name)}</div>
+${projHero({ p, idx, nums, cslug, stagePillHtml, nItems: (p.items || []).length })}
+<div class="pcols">${asideHtml}<section class="pws" aria-label="Project workspace">${ptabs}<div class="wsb" data-t="${t0}"><div id="overview"></div>${anchored}${extras.tasks || ''}${extras.notes || ''}${t0 === 'files' ? filesHtml : ''}
+<section class="panel" id="items" aria-label="Items"><h2 style="margin:0 0 10px;font-size:16px">Items${cbStatus ? ` <span style="font-weight:500;font-size:12px;color:var(--mute)">· CoreBridge order status would be <b>${esc(cbStatus)}</b></span>` : ''}</h2>${itemsHtml || items}</section></div></section></div></div><style>${PRCSS}${hideCss}</style>`;
+  return page({ title: p.name, user, tab: 'Projects', body, mode });
+}
+
+export function simplePage({ user, title, message, tab, mode }) {
+  return page({ title, user, tab, mode, body: `<div class="wrap"><div class="panel" style="margin-top:20px"><h1>${esc(title)}</h1><p>${esc(message)}</p><a class="btn" href="/projects?mode=${esc(mode || 'demo')}">Go to Projects</a></div></div>` });
+}
+
+export function bare(title, message, link) {
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(title)}</title><style>${CSS}</style></head><body>
+<header><div class="logo">SALES<span>MAX</span></div></header><div class="wrap"><div class="panel" style="margin-top:20px"><h1>${esc(title)}</h1><p>${esc(message)}</p>${link ? `<a class="btn primary" href="${esc(link[1])}">${esc(link[0])}</a>` : ''}</div></div></body></html>`;
+}
+
+// Served from /static/ui.js. The site's security policy blocks inline scripts and onclick/onchange handlers,
+// so every small page behavior lives here and hooks onto data- attributes.
+export const UI_JS = `(() => {
+  document.querySelectorAll('[data-autosubmit]').forEach((el) => el.addEventListener('change', () => { if (el.form) el.form.submit(); }));
+  document.querySelectorAll('[data-copy]').forEach((b) => b.addEventListener('click', () => { const i = document.querySelector(b.dataset.copy); if (!i) { location.hash = 'portal'; return; } if (navigator.clipboard) navigator.clipboard.writeText(i.value); else { i.select(); document.execCommand('copy'); } b.textContent = 'Link Copied'; }));
+  document.querySelectorAll('[data-print]').forEach((b) => b.addEventListener('click', () => window.print()));
+  document.querySelectorAll('[data-toggle-disable]').forEach((c) => c.addEventListener('change', () => { const t = document.querySelector(c.dataset.toggleDisable); if (t) t.disabled = !c.checked; }));
+  const tj = document.getElementById('sp-tpl-data'), t = document.getElementById('sp-tpl'), m = document.getElementById('sp-msg');
+  if (tj && t && m) { const T = JSON.parse(tj.textContent); t.addEventListener('change', () => { m.value = T[t.value] || m.value; }); }
+  document.querySelectorAll('.fbk input').forEach((r) => r.addEventListener('change', () => { const p = document.getElementById('fbp'), ta = document.querySelector('#fbform textarea'); if (p) p.textContent = r.dataset.p; if (ta) ta.placeholder = r.dataset.s; }));
+})();`;
+
+// Shared info tip (mockup InfoTip board): an "i" button that shows the tip on hover or keyboard focus. CSS only.
+export function infoTip(text, label = 'More info') {
+  return `<span class="itip"><button type="button" aria-label="${esc(label)}"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"></circle><path d="M12 11v6"></path><path d="M12 7.5h.01"></path></svg></button><span role="tooltip">${esc(text)}</span></span>`;
+}
+
+// Ported from ProjectRecord.dc.html: the project header card (title, money, stage time pill, chevrons, key facts, Next step bar).
+function projHero({ p, idx, nums, cslug, stagePillHtml = '', nItems = 0 }) {
+  const mon = [['Order total', money(p.total), '#1b2436', nItems ? `${nItems} product${nItems === 1 ? '' : 's'}` : '']];
+  if (p.balance != null) mon.push(['Balance due', money(p.balance), '#874511', p.depositNote || '']);
+  const st = LANES.map((l, i) => { const [bg, fg] = i < idx ? ['#16213a', '#ffffff'] : i === idx ? ['#a8343f', '#ffffff'] : ['#eef1f5', '#5a6478']; const meta = i < idx ? 'Done' : i === idx ? 'Now' : i === idx + 1 ? 'Next' : ''; return `<li${i === idx ? ' aria-current="step"' : ''} style="background:${bg};color:${fg};padding:6px 14px 6px 26px;min-width:0;min-height:40px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%,14px 50%)"><span style="font-size:13px;font-weight:700">${esc(l.name)}</span><span style="font-size:11px">${meta}</span></li>`; }).join('');
+  const mi = 'display:flex;flex-direction:column;text-align:left;padding:6px 8px;min-height:40px;border-radius:6px;color:#1b2436;text-decoration:none;font:inherit;background:transparent;border:0;cursor:pointer';
+  return `<div class="phero" style="background:#ffffff;border:1px solid #e3e7ee;border-radius:12px;padding:14px 20px;display:flex;flex-direction:column;gap:10px">
+<div style="display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:16px"><div style="flex:1 1 460px;min-width:0;max-width:640px"><h1 data-free style="margin:0;font-size:18px;font-weight:700;line-height:1.3;overflow-wrap:anywhere">${esc(p.name)}</h1><div style="font-size:13px;color:#5a6478;margin-top:4px"><a href="/customers/${esc(cslug)}" style="color:#1d4f91;text-decoration:none;font-weight:500">${esc(p.company)}</a>${p.orderId ? ' · Order ' + esc(p.orderId) : ''}</div></div>
+<dl style="margin:0;display:flex;gap:28px;flex-wrap:wrap;flex:0 0 auto">${mon.map(([k, v, c, n]) => `<div><dt style="font-size:12px;color:#5a6478">${k}</dt><dd style="margin:0;font-size:18px;font-weight:700;color:${c}">${esc(v)}</dd><div style="font-size:11px;color:#5a6478">${esc(n)}</div></div>`).join('')}</dl></div>
+${stagePillHtml ? `<div style="display:flex;justify-content:center;margin-bottom:-4px">${stagePillHtml}</div>` : ''}
+<ol aria-label="Project stage" class="pchev" style="list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px">${st}</ol>
+<dl class="pchev" style="margin:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:2px">${nums.slice(0, 5).map(([k, v, c]) => `<div style="min-width:0;padding-left:26px"><dt style="font-size:12px;color:#5a6478">${esc(k)}</dt><dd style="margin:0;font-size:15px;font-weight:700;color:${c}">${esc(v)}</dd></div>`).join('')}</dl>
+<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12px;color:#3d4658;background:#f6f7f9;border-radius:8px;padding:4px 6px 4px 10px;align-self:flex-start"><span style="font-weight:700;color:#5a6478">Next step</span><span>${esc(p.nextStep || 'See and add next steps for this project')}</span><span style="color:#5a6478">· on the Tasks tab</span><a href="/projects/${esc(p.id)}?mode=demo&tab=tasks" title="Open this project's tasks" style="font-size:12px;font-weight:700;color:#ffffff;background:#a8343f;border-radius:6px;padding:0 10px;min-height:28px;display:inline-flex;align-items:center;text-decoration:none">Do It →</a><details style="position:relative"><summary style="list-style:none;cursor:pointer;font-size:12px;font-weight:600;color:#1b2436;background:#ffffff;border:1px solid #d5dbe5;border-radius:6px;padding:0 8px;min-height:28px;display:inline-flex;align-items:center">More ▾</summary><div role="menu" aria-label="More for this project" style="position:absolute;top:32px;left:0;z-index:30;width:260px;background:#ffffff;border:1px solid #e3e7ee;border-radius:10px;box-shadow:0 12px 32px rgba(22,33,58,.18);padding:6px;display:flex;flex-direction:column"><a role="menuitem" href="/projects/${esc(p.id)}/build" style="${mi}"><b style="font-size:13px">Build Estimate</b><span style="font-size:11px;color:#5a6478">Price products and parts</span></a><a role="menuitem" href="/projects/${esc(p.id)}/invoice" style="${mi}"><b style="font-size:13px">Invoice Preview</b><span style="font-size:11px;color:#5a6478">What the customer will see</span></a><a role="menuitem" href="/projects/${esc(p.id)}/packing-slip" target="_blank" rel="noopener" style="${mi}"><b style="font-size:13px">Print Packing Slip (No Prices)</b><span style="font-size:11px;color:#5a6478">For the box or the install crew</span></a><button type="button" role="menuitem" data-copy="#pl-${esc(p.id)}" style="${mi}"><b style="font-size:13px">Copy Order Page Link</b><span style="font-size:11px;color:#5a6478">The customer's proofs, status and payment page</span></button></div></details></div></div><style>@media (max-width:760px){.pchev{grid-template-columns:repeat(2,minmax(0,1fr))!important}.pchev li{clip-path:none!important;border-radius:6px}}.rw{max-width:1240px!important;margin:0 auto!important;padding:20px 32px 48px!important;display:flex!important;flex-direction:column!important;gap:20px!important}</style>`;
+}

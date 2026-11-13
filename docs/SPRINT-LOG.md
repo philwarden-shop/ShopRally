@@ -1,0 +1,48 @@
+# Sprint log
+
+## 2026-11-12 continuous build (started 3:08 AM ET)
+- #1 Activities To Do groups + colored chips -> QA-PASSED (app-89f5a0e0e5f8169b). Risks tab renamed Team.
+- #2 Today's Scorecard (SalesMax task log + stage history only) + Preview confetti -> QA-PASSED.
+- #3 Project record: compact header, Where This Stands + Customer Flags full width -> QA-PASSED (app-59e1164feb6d5b50).
+- #4 Customers list + Customer record (tabs w/ badges, Account last, Shipping Accounts, Classification, Strategic badge, Insight) -> QA-PASSED (app-a90dcf7ced4c12c4).
+- #5/#6 Customer order page: phone note + Email Me the Link, + Add Comment, Approve New Price above threshold (default $25), Title Case buttons -> SUCCEEDED
+- #7 Admin Settings: 6 tabs, typed+validated fields, status strip, Advanced -> QA-PASSED (app-1646ad4b44b960f9).
+- #8/#9 Permits + Purchasing boards: Board/List, drag-and-drop (/static/board.js) with Move menu fallback, permit fields, no TV -> QA-PASSED (app-77b1c1b6f0aefaf3).
+- #10 Account menu: locations, 5 themes (whole page), Preview As -> QA-PASSED (app-b61942b2fba4f2ad).
+- QA harness: test/routes.test.mjs drives the real handler signed-in against an in-memory table (every page renders, forms save, cross-site posts blocked).
+- #12 PO check (tax-exempt / just-tax rule), #13 Coordinator panel, #15 My Projects tiles -> QA-PASSED (app-5a92daa3adf6fe72).
+- #14 Nightly Reconciliation report, #16 Setup Wizard interview -> QA-PASSED (app-6ee0cdb57d24f440).
+- #17 Consistency lint + #18 accessibility lint in the build; fixed Title Case on Design/Production boards, prospects; pale grey text gone -> QA-PASSED (app-4554e837d443fa7b). 93 tests.
+- Added backlog #19-#33.
+- #19 Performance + fireworks, #20 Team page (stuck + escalations), #21 New Task / Add Next Step, #24 Admin goals + celebrations toggle -> QA-PASSED (app-6e50f975ac76ad89).
+- #22 Customer Activity log, #23 Customers to Keep Warm, #28 Insight thumbs -> QA-PASSED (app-6043bf0381785df3).
+- #25 Shipping-account request draft, #26 Past Due page + reminder drafts with pay link, #27 Order Completed email (invoice + review) -> QA-PASSED (app-2fa1a2e429a6dad3).
+- #31 + New menu and New Project/Prospect form (one record); stage name 'In production' -> QA-PASSED (app-92972bb84abe3c79).
+- #30 Workflow Builder (drafts until Publish, Process Expert tips), #32 proof round limit + reminders panel -> QA-PASSED (app-9401f9560ee056a9).
+- #29 Field app (checklists, photos to Google Drive), #11 view choices remembered per user server-side; Production defaults to Board -> QA-PASSED (app-a353201b1b000bdd).
+- #33 Estimate notes from Admin -> SUCCEEDED
+- #34-#40 Search, Feedback, My Profile, Change Log, Pay panel, per-location data, portal end-to-end QA -> QA-PASSED (app-4a90225a75b4859a). 114 tests.
+- #41 Role views for Preview As (Design/Production/Permits/Purchasing 'My Work') -> QA-PASSED (app-64b5fdd71398b88b).
+- #42 Contacts on customers, #43 New Project for this customer, #44 Morning Summary preview, #45 CSV downloads, #46 phone nav scrolls -> QA-PASSED (app-aa0f1c8f9737cbb3). 118 tests.
+- #47 Project Next Steps + History, #48 Approved & Paid -> In production -> QA-PASSED (app-7f6123ad89e0b17d).
+- #50 Reset Sample Data -> QA-PASSED (app-ddddd54bd925fc77). 122 tests.
+- #51 demo data aligned, #52 Moving Off CoreBridge page, #53 proof versions via Google Drive links, #54 lint over 23 pages -> QA-PASSED (app-1d7ea7123c721ccd). 124 tests.
+- #55 sign-in lands on Activities, #56 Title Case on older pages (lint now 29 pages), #57 Billing & Add-ons + Help -> QA-PASSED (app-a4ca51cf40ac0638). 125 tests.
+- #58 auto hand-off tasks (fixed hand-off field in Coming Up + shipping drafts), #59 focus ring + skip link -> QA-PASSED. 127 tests.
+- #60 Upcoming Needs -> QA-PASSED (app-cb7c7821746248fe). 128 tests.
+- #61 vendor quote check on Purchasing, #62 Process Expert chat in Workflow Builder -> QA-PASSED. 130 tests.
+- #63 interview builds the workflow draft, #64 Performance goals from Admin -> QA-PASSED. 131 tests.
+- #65 customer PO entry on the order page -> QA-PASSED.
+- #66 ready-date forecast on the order page -> QA-PASSED.
+- #67 Team Members + assign tasks to teammates -> QA-PASSED.
+- #68 snooze, #69 mark lost with reason -> QA-PASSED.
+- #70 card badges, #71 aria-current nav -> QA-PASSED.
+- #73 DATA_MODE=live switch: every sample-data source returns nothing in production -> QA-PASSED. 136 tests.
+- #74 CoreBridge history importer built (read-only, resumable, 2 calls per click while testing). Off until Phil allows it. 137 tests.
+- #77 public quote request form, #78 online estimate approval -> QA-PASSED. 141 tests.
+- #79 editable email wording with placeholders -> QA-PASSED. 142 tests.
+- #80 owner-only Admin/Billing/money reports -> QA-PASSED. 144 tests.
+- #81 no GET resets, #82 task → customer history, #83 customer link panel on projects -> QA-PASSED. 146 tests.
+- ~5:00 AM: every unblocked backlog item (1-83) is QA-PASSED. Remaining items need Phil: CoreBridge import OK (#74, built and off), Fiserv credentials (#75), Google Drive connection (#76), open plan questions, release approval.
+- 8:30 AM, Phil's requests: #84 email archive/spam/out-of-office (no delete), #85 hand-off address on project/estimate/invoice, #86 XPS shipping charge + Complete gate -> QA-PASSED (app-31f1d08e352fbaa6). 152 tests.
+- 9:30 AM, Phil's email/XPS feedback: #89-#94 -> QA-PASSED (app-a98c3debd424ed0e). 156 tests.

@@ -1,0 +1,334 @@
+# DRAFT - NOT DEPLOYED. Created from the test stack for the first release. Deploy only after Phil approves a release.
+# COREBRIDGE_WRITES stays 'off' until Phil separately approves writes.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: SalesMax v2 TEST copy - separate sign-in, data and web server. Reads CoreBridge only; never writes to CoreBridge.
+
+Parameters:
+  OwnerEmail:
+    Type: String
+    Default: phil.warden@fastsigns.com
+  AllowedEmails:
+    Type: String
+    Default: phil.warden@fastsigns.com
+  LoginDomainPrefix:
+    Type: String
+    Default: fastsigns-nky-salesmax2-prod
+  CoreBridgeReadFunction:
+    Type: String
+    Default: fastsigns-nky-corebridge-api-read
+  CoreBridgeEvidenceBucket:
+    Type: String
+    Default: fastsigns-nky-foundation-artifacts-yxfcj32pilp0
+
+Resources:
+  BuildBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub fastsigns-nky-salesmax2-prod-build-${AWS::AccountId}
+      VersioningConfiguration: { Status: Enabled }
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules: [{ ObjectOwnership: BucketOwnerEnforced }]
+      LifecycleConfiguration:
+        Rules:
+          - Id: old-builds-30-days
+            Status: Enabled
+            Prefix: packages/
+            ExpirationInDays: 30
+            NoncurrentVersionExpiration: { NoncurrentDays: 30 }
+      Tags: [{ Key: app, Value: salesmax2-prod }]
+
+  BuildBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref BuildBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: RequireTLS
+            Effect: Deny
+            Principal: '*'
+            Action: 's3:*'
+            Resource: [!GetAtt BuildBucket.Arn, !Sub '${BuildBucket.Arn}/*']
+            Condition: { Bool: { 'aws:SecureTransport': 'false' } }
+
+  AppTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: fastsigns-nky-salesmax2-prod
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+        - { AttributeName: gsi1pk, AttributeType: S }
+        - { AttributeName: gsi1sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: gsi1
+          KeySchema:
+            - { AttributeName: gsi1pk, KeyType: HASH }
+            - { AttributeName: gsi1sk, KeyType: RANGE }
+          Projection: { ProjectionType: ALL }
+      PointInTimeRecoverySpecification: { PointInTimeRecoveryEnabled: true }
+      SSESpecification: { SSEEnabled: true }
+      Tags: [{ Key: app, Value: salesmax2-prod }]
+
+  AppSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: /fastsigns-nky/salesmax2-prod/app
+      Description: SalesMax v2 test copy session signing key.
+      GenerateSecretString:
+        SecretStringTemplate: '{}'
+        GenerateStringKey: sessionKey
+        PasswordLength: 64
+        ExcludePunctuation: true
+      Tags: [{ Key: app, Value: salesmax2-prod }]
+
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: fastsigns-nky-salesmax2-prod
+      UserPoolTier: LITE
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: Your SalesMax (test copy) sign-in
+          EmailMessage: 'You have access to the SalesMax test copy. Sign in with {username} and this temporary password: {####} . You will choose your own password and set up a sign-in code app the first time.'
+      MfaConfiguration: 'ON'
+      EnabledMfas: [SOFTWARE_TOKEN_MFA]
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+      UserPoolTags: { app: salesmax2-prod }
+
+  LoginDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref LoginDomainPrefix
+      UserPoolId: !Ref UserPool
+
+  OwnerUser:
+    Type: AWS::Cognito::UserPoolUser
+    DependsOn: [WebClient]
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref OwnerEmail
+      DesiredDeliveryMediums: [EMAIL]
+      UserAttributes:
+        - { Name: email, Value: !Ref OwnerEmail }
+        - { Name: email_verified, Value: 'true' }
+
+  WebClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: salesmax2-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs: [!Sub '${WebUrl.FunctionUrl}auth/callback']
+      LogoutURLs: [!Sub '${WebUrl.FunctionUrl}signed-out']
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      ExplicitAuthFlows: [ALLOW_REFRESH_TOKEN_AUTH, ALLOW_USER_SRP_AUTH]
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      RefreshTokenValidity: 1
+      TokenValidityUnits: { IdToken: minutes, AccessToken: minutes, RefreshToken: days }
+
+  WebLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/fastsigns-nky-salesmax2-prod-web
+      RetentionInDays: 90
+
+  WebRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: fastsigns-nky-salesmax2-prod-web
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: salesmax2-prod-web
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub '${WebLogs.Arn}:*'
+              - Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem, dynamodb:DeleteItem, dynamodb:Query, dynamodb:BatchGetItem, dynamodb:BatchWriteItem, dynamodb:TransactWriteItems, dynamodb:ConditionCheckItem]
+                Resource: [!GetAtt AppTable.Arn, !Sub '${AppTable.Arn}/index/*']
+              - Effect: Allow
+                Action: [secretsmanager:GetSecretValue]
+                Resource: !Ref AppSecret
+              - Effect: Allow
+                Action: [cognito-idp:ListUserPoolClients]
+                Resource: !GetAtt UserPool.Arn
+              - Sid: CoreBridgeReadOnly
+                Effect: Allow
+                Action: [lambda:InvokeFunction]
+                Resource: !Sub 'arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${CoreBridgeReadFunction}'
+              - Sid: CoreBridgeReadResponses
+                Effect: Allow
+                Action: [s3:GetObject]
+                Resource: !Sub 'arn:aws:s3:::${CoreBridgeEvidenceBucket}/corebridge/api/v1/responses/*'
+
+  WebFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: [WebLogs]
+    Properties:
+      FunctionName: fastsigns-nky-salesmax2-prod-web
+      Description: SalesMax v2 TEST copy web app (Cognito sign-in required). CoreBridge read-only.
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      Handler: index.handler
+      MemorySize: 1024
+      Timeout: 30
+      ReservedConcurrentExecutions: 5
+      Role: !GetAtt WebRole.Arn
+      Code:
+        ZipFile: |
+          exports.handler = async () => ({ statusCode: 200, headers: { 'content-type': 'text/plain' }, body: 'SalesMax test copy is being set up.' });
+      Environment:
+        Variables:
+          APP_ENV: test
+          OWNER_EMAIL: !Ref OwnerEmail
+          ALLOWED_EMAILS: !Ref AllowedEmails
+          SECRET_ARN: !Ref AppSecret
+          TABLE: !Ref AppTable
+          USER_POOL_ID: !Ref UserPool
+          COGNITO_DOMAIN: !Sub '${LoginDomainPrefix}.auth.${AWS::Region}.amazoncognito.com'
+          CLIENT_NAME: salesmax2-web
+          COREBRIDGE_READ_FUNCTION: !Ref CoreBridgeReadFunction
+          COREBRIDGE_WRITES: 'off'
+          COREBRIDGE_EVIDENCE_BUCKET: !Ref CoreBridgeEvidenceBucket
+      Tags: [{ Key: app, Value: salesmax2-prod }]
+
+  WebUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      TargetFunctionArn: !GetAtt WebFunction.Arn
+      AuthType: NONE
+
+  WebUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: '*'
+      FunctionUrlAuthType: NONE
+
+  WebUrlInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WebFunction
+      Action: lambda:InvokeFunction
+      Principal: '*'
+      InvokedViaFunctionUrl: true
+
+  BuildLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/codebuild/fastsigns-nky-salesmax2-prod
+      RetentionInDays: 30
+
+  BuildRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: fastsigns-nky-salesmax2-prod-build
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: codebuild.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: build-and-deploy-prod-only
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub '${BuildLogs.Arn}:*'
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject]
+                Resource: !Sub '${BuildBucket.Arn}/*'
+              - Effect: Allow
+                Action: [s3:ListBucket]
+                Resource: !GetAtt BuildBucket.Arn
+              - Sid: DeployTestCopyOnly
+                Effect: Allow
+                Action: [lambda:UpdateFunctionCode, lambda:GetFunction, lambda:GetFunctionConfiguration]
+                Resource: !GetAtt WebFunction.Arn
+
+  BuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name: fastsigns-nky-salesmax2-prod
+      Description: Builds, tests and deploys the SalesMax v2 TEST copy from source in the build bucket.
+      ServiceRole: !GetAtt BuildRole.Arn
+      Artifacts: { Type: NO_ARTIFACTS }
+      TimeoutInMinutes: 15
+      LogsConfig:
+        CloudWatchLogs: { Status: ENABLED, GroupName: !Ref BuildLogs }
+      Environment:
+        Type: ARM_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux-aarch64-standard:3.0
+        EnvironmentVariables:
+          - { Name: BUILD_BUCKET, Value: !Ref BuildBucket }
+          - { Name: FUNCTION, Value: !Ref WebFunction }
+      Source:
+        Type: NO_SOURCE
+        BuildSpec: |
+          version: 0.2
+          phases:
+            install:
+              runtime-versions:
+                nodejs: 22
+            build:
+              commands:
+                - mkdir -p src && aws s3 cp --recursive --quiet "s3://$BUILD_BUCKET/source/" src/
+                - cd src && node --test test/ && cd ..
+                - (cd src/app && zip -qr -9 -X ../../app.zip .)
+                - SHA=$(sha256sum app.zip | cut -c1-16)
+                - aws s3 cp --quiet app.zip "s3://$BUILD_BUCKET/packages/app-$SHA.zip"
+                - aws lambda update-function-code --function-name "$FUNCTION" --s3-bucket "$BUILD_BUCKET" --s3-key "packages/app-$SHA.zip" --query CodeSha256 --output text
+                - echo "DEPLOYED packages/app-$SHA.zip"
+      Tags: [{ Key: app, Value: salesmax2-prod }]
+
+Outputs:
+  SiteUrl:
+    Value: !GetAtt WebUrl.FunctionUrl
+  BuildBucket:
+    Value: !Ref BuildBucket
+  Table:
+    Value: !Ref AppTable
+  UserPoolId:
+    Value: !Ref UserPool
