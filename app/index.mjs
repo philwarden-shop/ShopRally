@@ -19,6 +19,7 @@ import { extrasHtml, addComment, decidePrice, demoPriceChange, DEFAULT_PRICE_THR
 import { settingsPage, mergeSettings , withAdminNav } from './settings.mjs';
 import { mergeExtra, assignLead } from './adminx.mjs';
 import { parseChecklistRows } from './adminwf.mjs';
+import { readPolicy, mergePolicy, paymentGate, crossesGate } from './paypolicy.mjs';
 import { simpleBoardPage, demoRecords, moveRecord, updateFields, BOARD_JS, BOARDS as SIMPLE_BOARDS, addFee, newRecord, syncPurchasing, syncPermits } from './simpleboards.mjs';
 import { roleGroups, roleActivitiesPage } from './roleview.mjs';
 import { applyQuoteCheck } from './quotecheck.mjs';
@@ -87,6 +88,15 @@ export function formBody(event) {
 // A project whose items are moving on a board (or waiting on the customer) already has a next step: the board owns it.
 const ACTIVE_STEPS = new Set(['prep', 'queue', 'indesign', 'proofqc', 'salesrev', 'proofwait', 'files', 'wip', 'vended', 'qc', 'hold']);
 const markOnBoard = (projects, items) => { const on = new Set((items || []).filter((i) => ACTIVE_STEPS.has(i.step)).map((i) => i.projectId)); return projects.map((p) => (on.has(p.id) ? { ...p, onBoard: true } : p)); };
+// Payment policy status for a project: { ok, need, overridden }.
+async function payStatus(p) {
+  const pol = readPolicy(await getConfig('pay-policy', null).catch(() => null), await getConfig('admin-settings', {}).catch(() => ({})));
+  const po = await getConfig(`po-${p.id}`, null).catch(() => null);
+  const paid = p.balance != null && p.total != null ? Math.max(0, Number(p.total) - Number(p.balance)) : Number(p.paid || 0);
+  const g = paymentGate(p, pol, { paid, po: !!(po && po.poNumber), terms: p.terms || '' });
+  const ov = await getConfig(`payoverride-${p.id}`, null).catch(() => null);
+  return { ...g, pol, overridden: ov };
+}
 const safeBack = (b, dflt) => (typeof b === 'string' && /^\/[\w/?=&.-]*$/.test(b) && !b.startsWith('//') ? b : dflt);
 
 const SECURITY = {
@@ -157,6 +167,7 @@ const route = async (event) => {
         try {
           const axP = await getConfig('admin-extra', null).catch(() => null); const aList = (axP && Array.isArray(axP.approvalChecks) && axP.approvalChecks.length) ? axP.approvalChecks : APPROVAL_CHECKS;
           const d = decideProof(it, f.decision, { checks: aList.map((_, n) => f[`check${n}`]).filter(Boolean), notes: f.notes, list: aList, mustAll: axP ? axP.approvalAll !== false : true });
+          if (f.decision === 'changes' && /salesperson/i.test(String(((await getConfig('admin-settings', {}).catch(() => ({}))) || {}).changeRequestsGo || ''))) d.to = 'salesrev';
           const signer = String(f.signer || project.contact || '').trim().slice(0, 80);
           await moveItem(it.id, d.to, { by: `customer:${signer || project.contact}`, note: d.to === 'files' ? `${d.note} Signed by ${signer}, proof ${String(f.version || '').slice(0, 10)}.` : d.note, reason: d.note });
           // Approval record (review fix): who, which version, when, and what they ticked. Kept for disputes.
@@ -379,6 +390,12 @@ const route = async (event) => {
           if (miss.length) return redirect(`${back}${back.includes('?') ? '&' : '?'}flash=${encodeURIComponent('Not moved: finish the checklist first (' + miss.join(', ') + ').')}`);
         }
       }
+      // Payment policy: the order can't move past the hold point until the deposit / payment / PO is in.
+      if (to !== 'hold') {
+        const itg = (await listItems()).find((i) => i.id === mv[1]);
+        const pg = itg ? await getProject(itg.projectId, 'demo') : null;
+        if (itg && pg) { const ps = await payStatus(pg); if (!ps.ok && !ps.overridden && crossesGate(ps.pol, itg.step, to)) return redirect(`${back}${back.includes('?') ? '&' : '?'}flash=${encodeURIComponent(`Not moved: payment policy. Waiting on ${ps.need}. A manager can override it on the project page.`)}`); }
+      }
       if (to === 'built') {
         const itb = (await listItems()).find((i) => i.id === mv[1]);
         if (itb) {
@@ -574,6 +591,22 @@ const route = async (event) => {
       await putConfig('seqstate', markStepDone(await getConfig('seqstate', {}).catch(() => ({})), String(f.key || ''), f.n));
       return redirect('/activities?flash=' + encodeURIComponent('Done. The next step shows up on its day.'));
     }
+    if (path === '/admin/paypolicy' && method === 'POST') {
+      if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
+      if (!user.isAdmin) return html(bare('Admins only', 'Only admins can change the payment policy.'), 403);
+      const bkP = safeBack(q.back, '/admin?tab=orders');
+      try { const nx = mergePolicy(await getConfig('pay-policy', null).catch(() => null), formBody(event), await getConfig('admin-settings', {}).catch(() => ({}))); await putConfig('pay-policy', nx); return redirect(bkP + '&flash=' + encodeURIComponent('Payment policy saved.') + '#paypol-h'); }
+      catch (e) { return redirect(bkP + '&flash=' + encodeURIComponent('Not saved: ' + e.message + '.') + '#paypol-h'); }
+    }
+    const pov = path.match(/^\/projects\/([\w-]+)\/pay-override$/);
+    if (pov && method === 'POST') {
+      if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
+      if (!user.isAdmin) return redirect(`/projects/${pov[1]}?mode=demo&flash=${encodeURIComponent('Only a manager or owner can override the payment policy.')}`);
+      const why = String(formBody(event).why || '').trim().slice(0, 200);
+      if (why.length < 3) return redirect(`/projects/${pov[1]}?mode=demo&flash=${encodeURIComponent('Say why, so it is clear later (for example: long-time customer, paying at pickup).')}`);
+      await putConfig(`payoverride-${pov[1]}`, { by: user.name || user.email, at: new Date().toISOString(), why });
+      return redirect(`/projects/${pov[1]}?mode=demo&flash=${encodeURIComponent('Payment policy overridden for this order. Logged with your name.')}`);
+    }
     if (path === '/admin/preview-order-page') {
       const pv = (await listProjects('demo')).projects[0];
       if (!pv) return redirect('/admin?tab=orders&flash=' + encodeURIComponent('No sample project to preview yet.'));
@@ -742,7 +775,7 @@ const route = async (event) => {
       const listsX = (tab === 'sales' || tab === 'orders') ? await getConfig('customer-lists', {}).catch(() => ({})) : {};
       const appsX = {};
       if (tab === 'orders' || tab === 'cb') for (const a of ['cardpointe', 'clarity', 'xps', 'corebridge']) { try { appsX[a] = appStatus(a, await readApp(a)).connected; } catch { appsX[a] = false; } }
-      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, seqs: tab === 'sales' ? await getConfig('sequences', null).catch(() => null) : null, leadLog: tab === 'sales' ? await getConfig('lead-assign', null).catch(() => null) : null, ...wfX }));
+      return html(settingsPage({ user, settings, tab, flash: q.flash || '', extra: extraA, lists: listsX, apps: appsX, payPolicy: tab === 'orders' ? await getConfig('pay-policy', null).catch(() => null) : null, seqs: tab === 'sales' ? await getConfig('sequences', null).catch(() => null) : null, leadLog: tab === 'sales' ? await getConfig('lead-assign', null).catch(() => null) : null, ...wfX }));
     }
     if (path === '/admin/extra' && method === 'POST') {
       if (!sameSite()) return html(bare('Blocked', 'That request came from another site.'), 403);
@@ -1187,6 +1220,7 @@ const route = async (event) => {
         const hist0 = (await recentLog(200).catch(() => [])).filter((l) => ids0.has(l.itemId || l.item || l.id)).map((l) => ({ ...l, itemName: nm0[l.itemId || l.item || l.id] }));
         standing += historyHtml(hist0, (id) => stepById(id)?.name || id || '');
         { const sc0 = await getConfig(`scope-${p.id}`, null).catch(() => null); let v0 = await getConfig(`visit-${p.id}`, null).catch(() => null); v0 = v0 || seedVisit(p, sampleData()); extrasP.scope = { text: (sc0 && sc0.text) || '', at: sc0 && sc0.at, by: sc0 && sc0.by, items: (v0.items || []).filter((x) => !x.dropped).length, meas: (v0.items || []).reduce((a, x) => a + (x.meas || []).length, 0), visits: v0.visits || 0, needs: (v0.needs || []).length }; }
+        if (['progress', 'built'].includes(p.lane)) { const psP = await payStatus(p); if (!psP.ok) standing = (psP.overridden ? `<section class="panel" aria-label="Payment policy" style="background:#fdf3dc;border-color:#f0d6b3;font-size:13px"><b>Payment policy overridden</b> by ${esc(psP.overridden.by)} · ${esc(psP.overridden.why)}. Still waiting on ${esc(psP.need)}.</section>` : `<section class="panel" aria-label="Payment policy" style="background:#fbeaec;border-color:#f0c5ca;display:flex;flex-direction:column;gap:8px"><div style="font-size:14px"><b style="color:#8f2a34">On hold for payment:</b> waiting on ${esc(psP.need)}. Products can't move ${psP.pol.gateAt === 'production' ? 'into production' : 'into design'} until it's in.</div>${user.isAdmin ? `<details><summary style="cursor:pointer;font-size:13px;font-weight:600;color:#8f2a34">Override (Managers and Owners)</summary><form method="post" action="/projects/${esc(p.id)}/pay-override" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"><input name="why" required minlength="3" maxlength="200" placeholder="Why (e.g. paying at pickup)" aria-label="Why override" style="font:inherit;min-height:36px;flex:1 1 240px;border:1px solid #d5dbe5;border-radius:8px;padding:0 10px"><button class="btn">Override and Let Work Start</button></form></details>` : ''}</section>`) + standing; }
         extrasP.side = { itemHandoffs: its0.filter((i) => i.handoff).map((i) => [i.handoff, i.name]), dest: dest0, po: po0, email: (cu0.contact || {}).email || '', phone: (cu0.company || {}).phone || (cu0.contact || {}).phone || '', expected: expectedFor(p, its0, today0) };
         standing += poPanel(p.id, po0 || {}, po0 && po0.poAmount ? poCheck({ poAmount: po0.poAmount, total: p.total, tax: p.tax || 0, taxExempt: !!(co0.isTaxExempt ?? co0.IsTaxExempt ?? co0.taxExempt) }) : null);
       }
@@ -1244,6 +1278,19 @@ const route = async (event) => {
         custsK.forEach((c, n) => { const w = warmth(c, profsK[n], today, adm); if (w.state === 'Active') return; const id = `kw-${c.id}-${String(w.last || 'none').slice(0, 7)}`; if (have.has(id) || add.length >= 10) return; add.push({ id, kind: 'call', title: `${w.state === 'Dormant' ? 'Win back' : 'Check in with'} ${c.name}${w.days != null ? ` · no contact in ${w.days} days` : ''}`, customer: c.name, projectId: '', due: today, done: false, label: w.state === 'Dormant' ? 'Win-back' : 'Keep warm' }); });
         if (add.length) { tasks = [...tasks, ...add]; await putConfig(`tasks-${who}`, tasks); }
       } catch { /* keep-warm tasks are best-effort */ }
+      // Estimate expiry (Phil, Nov 14: admin decides). The clock starts the first day SalesMax sees the estimate.
+      try {
+        const mode = String(adm.estimateExpiry || 'Ask the salesperson');
+        if (!/^Do nothing/.test(mode)) {
+          const days = Number(adm.estimateValidDays) || 30; const st = await getConfig('est-start', {}).catch(() => ({})); let ch = false;
+          for (const pe of projects.filter((x) => x.lane === 'estimate')) { if (!st[pe.id]) { st[pe.id] = pe.estimateAt || today; ch = true; } }
+          if (ch) await putConfig('est-start', st);
+          const addD = (d, n) => { const x = new Date(d + 'T12:00:00Z'); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+          const expired = projects.filter((x) => x.lane === 'estimate' && st[x.id] && addD(st[x.id], days) <= today);
+          if (/^Mark it Lost/.test(mode) && expired.length) { let ovE = await getConfig('lane-overrides', {}).catch(() => ({})); for (const pe of expired) ovE = markLost(ovE, pe, { reason: 'No response', note: `Estimate expired after ${days} days.` }, { by: 'SalesMax', at: new Date().toISOString() }); await putConfig('lane-overrides', ovE); }
+          else if (expired.length) { const teamE = await getConfig('team', demoTeam()).catch(() => demoTeam()); const have = new Set(tasks.map((t) => t.id)); const addE = expired.filter((pe) => keyForName(pe.salesperson, teamE) === who && !have.has(`exp-${pe.id}`)).map((pe) => ({ id: `exp-${pe.id}`, kind: 'call', title: `Estimate expired: ${pe.name} (${days} days). Follow up, re-quote, or mark it lost`, customer: pe.company, projectId: pe.id, due: today, done: false, label: 'Expired estimate' })); if (addE.length) { tasks = [...tasks, ...addE]; await putConfig(`tasks-${who}`, tasks); } }
+        }
+      } catch { /* expiry is best-effort */ }
       const upA = comingUpToday(allItems, today), hdA = demoHandled(today);
       const proofA = proofPanel(proofReminders(allItems, new Date(), adm.proofReminderDays ?? 2), allItems, adm.proofRoundLimit ?? 3);
       const side = coordinatorHtml(upA, hdA) + proofA;

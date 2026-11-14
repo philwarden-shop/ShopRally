@@ -4,6 +4,7 @@ import { companyExtras, salesExtras } from './adminx.mjs';
 import { rulesSections, LIST_DEFAULTS, IMPORT_KINDS } from './salesrules.mjs';
 import { workflowExtras } from './adminwf.mjs';
 import { pricingExtras, ordersExtras, connExtras } from './adminpo.mjs';
+import { policyCard, readPolicy } from './paypolicy.mjs';
 
 export const TABS = [
   ['company', 'Company'], ['sales', 'Sales'], ['pricing', 'Pricing'], ['work', 'Work'], ['orders', 'Customer Page & Payments'], ['cb', 'Connections'],
@@ -35,6 +36,8 @@ export const FIELDS = {
     ['cardFeePct', 'Card fee (%)', 'number', 3, 'Added to card payments only. eCheck has no fee.', false, [0, 4]],
     ['shipMarkupPct', 'Shipping markup (%)', 'number', 20, 'Added to the XPS label cost on the invoice.', false, [0, 200]],
     ['shipHandling', 'Shipping handling fee ($)', 'number', 0, 'Added once per label, on top of the markup.', false, [0, 500]],
+    ['estimateValidDays', 'Estimates are good for (days)', 'number', 30, 'After this many days an estimate expires.', false, [1, 365]],
+    ['estimateExpiry', 'When an estimate expires', 'select', 'Ask the salesperson (a task on their Activities)', 'Phil, Nov 14: an admin decides. Asking keeps a person in the loop; marking it lost keeps the pipeline honest.', false, ['Ask the salesperson (a task on their Activities)', 'Mark it Lost automatically', 'Do nothing']],
     ['estimateNotes', 'Notes on every estimate', 'text', 'Prices are good for 30 days. A 50% deposit starts production.', 'Printed at the bottom of every estimate.'],
   ],
   work: [
@@ -44,7 +47,8 @@ export const FIELDS = {
     ['target_estimate', 'Days in Estimate', 'number', 7, '', false, [1, 120]],
     ['target_progress', 'Days in In production', 'number', 4, '', false, [1, 120]],
     ['target_built', 'Days in Built (waiting for hand-off)', 'number', 2, '', false, [1, 120]],
-    ['qcBy', 'Quality control signed off by', 'select', 'Production lead', '', false, ['Production lead', 'Whoever built it', 'The salesperson']],
+    ['changeRequestsGo', 'When a customer asks for proof changes', 'select', 'Straight to the designer', 'Phil, Nov 14: NKY sends them straight to the designer. A price change still needs the customer to approve the new price on the order page.', false, ['Straight to the designer', 'To the salesperson first']],
+    ['qcBy', 'Quality control signed off by', 'select', 'The salesperson (or their QC delegate)', 'Phil, Nov 14: the salesperson signs off, or the delegate picked for them on Team Members.', false, ['The salesperson (or their QC delegate)', 'Production lead', 'Whoever built it']],
   ],
   orders: [
     ['pastDueReminders', 'Past due reminders', 'bool', true, 'Emails the customer a pay link when an invoice is past due.'],
@@ -200,7 +204,7 @@ export function collapseSections(html) {
 }
 const ACOL_CSS = '<style>details.acol{background:#ffffff;border:1px solid #e3e7ee;border-radius:12px}details.acol>summary{list-style:none;cursor:pointer;padding:14px 20px;min-height:52px;box-sizing:border-box;display:flex;align-items:center}details.acol>summary::-webkit-details-marker{display:none}details.acol>summary:hover{background:#f8f9fb;border-radius:12px}.acolt{display:grid;grid-template-columns:16px auto;column-gap:10px;align-items:center}.acolt b{font-size:16px;font-weight:700;color:#1b2436}.acold{grid-column:2;font-size:13px;color:#5a6478;line-height:1.45;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}.acolchev{color:#5a6478;transition:transform .15s}details.acol[open]>summary .acolchev{transform:rotate(90deg)}details.acol[open]>summary .acold{display:none}details.acol[open]>summary{border-bottom:1px solid #eef1f5;border-radius:12px 12px 0 0}details.acol>section{border:0!important;border-radius:0 0 12px 12px!important}details.acol>section>div:first-child h2,details.acol>section>h2:first-child,details.acol>section>div:first-child>div:first-child>h2{display:none!important}details.acol>section>div:first-child:has(>h2+.itip:last-child){display:none!important}details.acol>section>div:first-child h2+p,details.acol>section>div:first-child>div>h2+p{margin-top:0!important}</style>';
 const ACOL_BAR = '<div style="display:flex;gap:8px;justify-content:flex-end;margin-bottom:-12px"><button type="button" data-acol="open" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Expand All</button><button type="button" data-acol="close" style="font:inherit;font-size:13px;font-weight:600;color:#1d4f91;background:transparent;border:0;cursor:pointer;min-height:32px;padding:0 6px">Collapse All</button></div>';
-export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales', apps = {}, seqs = null, leadLog = null }) {
+export function settingsPage({ user, settings, tab = 'company', flash = '', error = '', extra = null, lists = {}, checklists = null, custom = [], cl = 'sales', apps = {}, seqs = null, leadLog = null, payPolicy = null }) {
   const t = FIELDS[tab] ? tab : 'company';
   const s = { ...defaults(), ...settings };
   const list = FIELDS[t];
@@ -210,7 +214,7 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const adv = shown.filter((x) => x[5]);
   const saved = s._savedAt?.[t];
   const changed = list.filter(([k, , type, d]) => type !== 'readonly' && s[k] !== d).length;
-  const counts = Object.fromEntries(Object.keys(FIELDS).map((k) => [k, 1 + (ATAB_LINKS[k] || []).length + (k === 'company' ? 7 : k === 'sales' ? 6 : k === 'work' ? 3 : 0)]).map(([k, n]) => [k, ({ sales: 8, work: 9, pricing: 3, orders: 8, cb: 6 })[k] || n]));
+  const counts = Object.fromEntries(Object.keys(FIELDS).map((k) => [k, 1 + (ATAB_LINKS[k] || []).length + (k === 'company' ? 7 : k === 'sales' ? 6 : k === 'work' ? 3 : 0)]).map(([k, n]) => [k, ({ sales: 8, work: 9, pricing: 3, orders: 9, cb: 6 })[k] || n]));
   const savedTxt = saved ? `Saved ${new Date(saved).toLocaleString('en-US', { timeZone: 'America/New_York', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}` : 'All changes saved';
   const std = { text: `${saved ? 'Settings saved' : 'Using the standard FASTSIGNS settings'} \u00b7 ${changed} changed from standard` };
   const chips = t === 'company' ? [{ text: '2 locations' }, { text: s.cbSync ? 'CoreBridge connected' : 'CoreBridge off' }, { text: 'Google Workspace not connected yet', warn: true }, std] : [std];
@@ -231,7 +235,7 @@ export function settingsPage({ user, settings, tab = 'company', flash = '', erro
   const px = t === 'pricing' ? pricingExtras(extra) : null;
   const ox = t === 'orders' ? ordersExtras(extra, { s, apps, lists }) : null;
   const cx = t === 'cb' ? connExtras(extra, { s, apps }) : null;
-  const tabExtras = t === 'pricing' ? px.engine + px.machines : t === 'orders' ? ox.portal + ox.branding + ox.pocheck + ox.emails + ox.docs + ox.credit + ox.ordering : t === 'cb' ? cx.apps + cx.jobf + cx.trans + cx.how + cx.cbch : t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + custLists + imp : t === 'work' ? wx.boards + wx.rules + rs.stages + rs.reply + rs.hours + wx.cl + wx.permits + wx.tags + wx.css : '';
+  const tabExtras = t === 'pricing' ? px.engine + px.machines : t === 'orders' ? policyCard(readPolicy(payPolicy, s)) + ox.portal + ox.branding + ox.pocheck + ox.emails + ox.docs + ox.credit + ox.ordering : t === 'cb' ? cx.apps + cx.jobf + cx.trans + cx.how + cx.cbch : t === 'sales' ? sx.src + sx.lead + rs.warm + sx.seq + sx.book + custLists + imp : t === 'work' ? wx.boards + wx.rules + rs.stages + rs.reply + rs.hours + wx.cl + wx.permits + wx.tags + wx.css : '';
   const ADV = { sales: 'Prospect Claim Rules, Sales Settings, more pages', work: 'Proof rounds, quality control, more pages', pricing: 'Modifier Price List, deposits and fees, more pages', orders: 'Past-due reminders, completed-order email, more pages', cb: 'CoreBridge Sync, history import, more pages' };
   const tail = ADV[t] ? `<details style="background:#ffffff;border:1px solid #e3e7ee;border-radius:12px;padding:12px 20px"><summary style="cursor:pointer;font-size:14px;font-weight:700;min-height:32px;display:flex;align-items:center;gap:6px">Advanced <span style="font-weight:400;font-size:13px;color:#5a6478">· rarely changed: ${ADV[t]}</span></summary><div style="display:flex;flex-direction:column;gap:16px;padding:12px 0 4px">${t === 'pricing' ? px.mods : ''}${t === 'sales' ? sx.claim.replace(/^<details[^>]*>/, '<div>').replace(/<summary[\s\S]*?<\/summary>/, '').replace(/<\/details>$/, '</div>') : ''}${settingsCard}${linkCard}</div></details>` : '';
   const msg = error ? `<div class="note" role="alert" style="margin:0;background:#fbeaec;color:#8f2a34">${esc(error)}</div>` : '';

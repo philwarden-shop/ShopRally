@@ -41,7 +41,7 @@ export const QUESTIONS = [
   { q: 'Who makes the proof, and does a salesperson check it before the customer sees it?', why: 'this decides whether there is a Sales proof review step.', a: ['Designer, then salesperson checks', 'Designer sends it directly', 'Depends on the job'], step: 'Proofing' },
   { q: 'Do you make everything in-house, or buy some products from vendors?', why: 'vended items get a purchasing step and vendor quote requests.', a: ['All in-house', 'Some vended', 'Mostly vended'], step: 'In-house or vended?' },
   { q: 'Does anything need a city permit?', why: 'permits can hold up fabrication, so they get their own board.', a: ['Yes, exterior signs', 'Rarely', 'No'], step: 'Permits' },
-  { q: 'Who checks the finished work before pickup or install?', why: 'this sets the Quality control step and who signs off.', a: ['Production lead', 'Whoever built it', 'The salesperson'], step: 'Quality control' },
+  { q: 'Who checks the finished work before pickup or install?', why: 'this sets the Quality control step and who signs off.', a: ['The salesperson (or their QC delegate)', 'Production lead', 'Whoever built it'], step: 'Quality control' },
   { q: 'Last one: when is a job finished? At pickup or install, or when it’s paid in full?', why: 'this decides when an order closes.', a: ['Delivered and paid', 'Delivered', 'Paid'], step: 'Complete & collect' },
 ];
 

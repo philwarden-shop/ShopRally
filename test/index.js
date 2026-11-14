@@ -71,4 +71,5 @@ import('./shipsweep.test.mjs');
 import('./sitevisit.test.mjs');
 import('./adminx.test.mjs');
 import('./adminwf.test.mjs');
+import('./paypolicy.test.mjs');
 import('./nosecrets.test.mjs');
